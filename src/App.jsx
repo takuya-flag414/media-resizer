@@ -232,17 +232,25 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center">
-      <h1 className="text-3xl font-bold text-gray-800">
-        媒体別一括リサイズツール <span className="text-lg font-normal text-gray-500">(β版)</span>
-      </h1>
-      <p className="text-gray-600 mt-2 mb-8">複数の写真を、指定の媒体サイズに一括変換します。</p>
-      
-      <div {...getRootProps()} className={`w-full h-full border-4 border-dashed rounded-2xl flex flex-col items-center justify-center transition-colors duration-300 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'}`}>
-        <input {...getInputProps()} />
-        <UploadCloud className="w-24 h-24 text-gray-400 mb-4" />
-        <p className="text-2xl font-bold text-gray-600">画像をドラッグ＆ドロップ</p>
-        <p className="text-gray-500 mt-2">またはクリックしてファイルを選択</p>
-        <p className="text-sm text-gray-400 mt-6">(JPG, PNG, HEIC, WebP / 30枚まで)</p>
+      <div className="max-w-2xl w-full">
+        <h1 className="text-3xl font-bold text-gray-800">
+          媒体別一括リサイズツール <span className="text-lg font-normal text-gray-500">(β版)</span>
+        </h1>
+        <p className="text-gray-600 mt-2 mb-10">複数の写真を、指定の媒体サイズに一括変換します。</p>
+        
+        <div {...getRootProps()} className={`w-full h-80 border-4 border-dashed rounded-2xl flex flex-col items-center justify-center transition-colors duration-300 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'}`}>
+          <input {...getInputProps()} />
+          
+          <div className="flex flex-col items-center">
+             <UploadCloud className="w-16 h-16 text-gray-400 mb-4" />
+             <p className="text-gray-500 mb-4">ここに画像をドラッグ＆ドロップ</p>
+             <p className="text-gray-500 mb-4">または</p>
+             <div className="px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors pointer-events-none">
+                ファイル・フォルダの選択
+             </div>
+          </div>
+        </div>
+        <p className="text-sm text-gray-400 mt-4">(JPG, PNG, HEIC, WebP / 30枚まで)</p>
       </div>
     </div>
   );
