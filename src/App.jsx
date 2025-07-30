@@ -242,12 +242,13 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
           <input {...getInputProps()} />
           
           <div className="flex flex-col items-center">
-             <UploadCloud className="w-16 h-16 text-gray-400 mb-4" />
-             <p className="text-gray-500 mb-4">ここに画像をドラッグ＆ドロップ</p>
-             <p className="text-gray-500 mb-4">または</p>
-             <div className="px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors pointer-events-none">
-                ファイル・フォルダの選択
-             </div>
+            <UploadCloud className="w-16 h-16 text-gray-400 mb-4" />
+            <p className="text-gray-500 mb-2">ここに画像をドラッグ＆ドロップ</p>
+            <p className="text-gray-500 mb-4">または</p>
+            <div className="px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors pointer-events-none">
+                ファイルを選択
+            </div>
+            <p className="text-xs text-gray-500 mt-4">フォルダをアップロードする場合は、ドラッグ＆ドロップしてください。</p>
           </div>
         </div>
         <p className="text-sm text-gray-400 mt-4">(JPG, PNG, HEIC, WebP / 30枚まで)</p>
