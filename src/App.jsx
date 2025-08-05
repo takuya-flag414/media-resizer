@@ -109,6 +109,69 @@ const generateCroppedPreview = (imageUrl, cropData) => {
   });
 };
 
+// 新しく追加するサムネイル生成関数
+const createFinalThumbnail = (imageUrl, targetSize) => {
+  return new Promise((resolve, reject) => {
+    const THUMB_SIZE = 240; // サムネイル画像の解像度 (96x96の表示領域に対して高めに設定)
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.src = imageUrl;
+
+    image.onload = () => {
+      // 1. 出力アスペクト比で中央クロップするためのソース領域を計算
+      let sourceX, sourceY, sourceWidth, sourceHeight;
+      const imageAspect = image.width / image.height;
+      const targetAspect = targetSize.w / targetSize.h;
+
+      if (imageAspect > targetAspect) {
+        sourceHeight = image.height;
+        sourceWidth = image.height * targetAspect;
+        sourceX = (image.width - sourceWidth) / 2;
+        sourceY = 0;
+      } else {
+        sourceWidth = image.width;
+        sourceHeight = image.width / targetAspect;
+        sourceX = 0;
+        sourceY = (image.height - sourceHeight) / 2;
+      }
+
+      // 2. 正方形のサムネイル用キャンバスを作成し、白で塗りつぶす
+      const thumbCanvas = document.createElement('canvas');
+      thumbCanvas.width = THUMB_SIZE;
+      thumbCanvas.height = THUMB_SIZE;
+      const ctx = thumbCanvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, THUMB_SIZE, THUMB_SIZE);
+
+      // 3. クロップした画像を、余白付きでサムネイルキャンバスの中央に描画
+      let destWidth, destHeight;
+      if (targetAspect >= 1) { // 横長または正方形
+        destWidth = THUMB_SIZE;
+        destHeight = THUMB_SIZE / targetAspect;
+      } else { // 縦長
+        destHeight = THUMB_SIZE;
+        destWidth = THUMB_SIZE * targetAspect;
+      }
+      const destX = (THUMB_SIZE - destWidth) / 2;
+      const destY = (THUMB_SIZE - destHeight) / 2;
+
+      ctx.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        destX,
+        destY,
+        destWidth,
+        destHeight
+      );
+
+      resolve(thumbCanvas.toDataURL('image/jpeg', 0.85));
+    };
+    image.onerror = reject;
+  });
+};
 
 // === React Components ===
 
@@ -175,7 +238,7 @@ const Alert = ({ message, type = 'error', onDismiss }) => {
 const LoadingScreen = ({ title, progress, total }) => (
   <div className="w-full h-full flex flex-col items-center justify-center text-center">
       <h1 className="text-2xl font-bold text-gray-700 mb-10">
-          媒体別リサイズツール <span className="text-lg font-normal text-gray-500">(β版)</span>
+          メディア別一括リサイズツール <span className="text-lg font-normal text-gray-500">(β版)</span>
       </h1>
       <Loader className="w-16 h-16 animate-spin text-blue-500" />
       <h2 className="text-2xl font-semibold mt-4 text-gray-600">{title}</h2>
@@ -219,7 +282,8 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
     }
   }, [onFilesAccepted, setErrors]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  // noClick: true を追加し、useDropzoneからopen関数を取得
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: {
       'image/jpeg': ['.jpg', '.jpeg'],
@@ -228,26 +292,41 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
       'image/heic': ['.heic', '.heif'],
     },
     maxSize: 10 * 1024 * 1024, // 10MB
+    noClick: true, // ドロップゾーンのクリックを無効化
   });
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center">
+    // ルート要素はドラッグエリアとしてのみ機能させる
+    <div {...getRootProps()} className="w-full h-full flex flex-col items-center justify-center p-8 text-center relative">
+      <input {...getInputProps()} />
+      
+      {isDragActive && (
+        <div className="absolute inset-0 bg-black bg-opacity-60 z-10 flex items-center justify-center">
+          <p className="text-white text-3xl font-bold">ファイル・フォルダをドロップしてアップロード</p>
+        </div>
+      )}
+
       <div className="max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-gray-800">
-          媒体別一括リサイズツール <span className="text-lg font-normal text-gray-500">(β版)</span>
+          メディア別一括リサイズツール <span className="text-lg font-normal text-gray-500">(β版)</span>
         </h1>
         <p className="text-gray-600 mt-2 mb-10">複数の写真を、指定の媒体サイズに一括変換します。</p>
         
-        <div {...getRootProps()} className={`w-full h-80 border-4 border-dashed rounded-2xl flex flex-col items-center justify-center transition-colors duration-300 cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'}`}>
-          <input {...getInputProps()} />
-          
+        <div className={`w-full h-80 rounded-2xl flex flex-col items-center justify-center transition-colors duration-300 bg-gray-50`}>
           <div className="flex flex-col items-center">
             <UploadCloud className="w-16 h-16 text-gray-400 mb-4" />
             <p className="text-gray-500 mb-2">ここに画像をドラッグ＆ドロップ</p>
             <p className="text-gray-500 mb-4">または</p>
-            <div className="px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors pointer-events-none">
+            
+            {/* ボタンをbuttonタグに変更し、onClick={open}とホバー効果を追加 */}
+            <button
+                type="button"
+                onClick={open}
+                className="px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors cursor-pointer"
+            >
                 ファイルを選択
-            </div>
+            </button>
+
             <p className="text-xs text-gray-500 mt-4">フォルダをアップロードする場合は、ドラッグ＆ドロップしてください。</p>
           </div>
         </div>
@@ -333,7 +412,9 @@ const ImageCard = ({ image, onSelect, isSelected, media }) => {
             onClick={() => onSelect(image.id)}
             className={`bg-white border rounded-xl overflow-hidden shadow-sm transition-all duration-200 cursor-pointer flex p-3 space-x-3 ${isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:shadow-md hover:border-gray-300'}`}
         >
-            <div className="w-24 h-24 bg-gray-100 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden">
+            {/* ★ 変更点: サムネイルのコンテナの背景を白にし、枠線を追加 */}
+            <div className="w-24 h-24 bg-white border border-gray-200 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden">
+                {/* ★ 変更点: object-cover を object-contain に変更 */}
                 <img src={image.thumbnailUrl} alt={image.file.name} className="object-contain w-full h-full" />
             </div>
             <div className="flex-grow flex flex-col justify-center min-w-0">
@@ -370,8 +451,51 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
         }
     }, [images, selectedImageId]);
 
+    useEffect(() => {
+        const processThumbnails = async () => {
+          // 更新が必要な画像（未処理 or 媒体が変更された）を特定
+          const imagesToUpdate = images.filter(img => !img.isProcessed || img.processedMedia !== media);
+          if (imagesToUpdate.length === 0) return;
+
+          const updatedImages = await Promise.all(images.map(async (image) => {
+            // 更新対象でなければ、そのままのデータを返す
+            if (!imagesToUpdate.some(u => u.id === image.id)) {
+              return image;
+            }
+
+            const targetSize = RESIZE_DEFINITIONS[media]?.[image.type];
+            // ターゲットサイズがない（対象外の）画像は、処理済みとしてマークのみ行う
+            if (!targetSize) {
+              return { ...image, isProcessed: true, processedMedia: media, thumbnailUrl: image.thumbnailUrl };
+            }
+
+            try {
+              // 新しいサムネイルを生成
+              const newThumbnailUrl = await createFinalThumbnail(image.originalUrl, targetSize);
+              return {
+                  ...image,
+                  thumbnailUrl: newThumbnailUrl, // サムネイルを更新
+                  isProcessed: true,
+                  processedMedia: media
+              };
+            } catch (error) {
+              console.error("最終サムネイルの生成に失敗しました:", image.file.name, error);
+              // エラーが発生した場合も、再試行を防ぐために処理済みとしてマーク
+              return { ...image, isProcessed: true, processedMedia: media };
+            }
+          }));
+
+          setImages(updatedImages);
+        };
+
+        processThumbnails();
+        // setImagesは依存配列から除外して無限ループを防止
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [media, images]);
+
+
     const handleTypeChange = (id, type) => {
-        setImages(prev => prev.map(img => img.id === id ? { ...img, type, cropData: null } : img));
+        setImages(prev => prev.map(img => img.id === id ? { ...img, type, cropData: null, isProcessed: false } : img));
     };
 
     const handleCropAdjust = (id) => {
@@ -399,7 +523,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
             setErrors(['トリミング後のプレビュー生成に失敗しました。']);
         }
     };
-    
+
     const handleProcessClick = () => {
         const imagesToProcess = images.filter(img => RESIZE_DEFINITIONS[media]?.[img.type]);
         if (imagesToProcess.length === 0) {
@@ -417,15 +541,15 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
     if(croppingImage) {
       croppingImage.targetSize = RESIZE_DEFINITIONS[media]?.[croppingImage.type];
     }
-    
+
     return (
         <div className="w-full h-full flex flex-col bg-gray-50">
             <header className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
                  <h2 className="text-xl font-semibold text-gray-800">
-                    媒体別リサイズツール <span className="font-normal text-gray-500">(β版) (ステップ2)</span>
+                    メディア別一括リサイズツール <span className="font-normal text-gray-500">(β版) (ステップ2)</span>
                  </h2>
             </header>
-            
+
             <main className="flex-grow flex min-h-0">
                 {/* 左側: 画像一覧エリア */}
                 <div className="w-2/3 border-r border-gray-200 overflow-y-auto p-4">
@@ -434,9 +558,9 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                         {images.map(image => (
-                            <ImageCard 
-                                key={image.id} 
-                                image={image} 
+                            <ImageCard
+                                key={image.id}
+                                image={image}
                                 onSelect={setSelectedImageId}
                                 isSelected={image.id === selectedImageId}
                                 media={media}
@@ -459,9 +583,9 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-600 mb-2">画質: <span className="ml-3 font-mono text-sm bg-gray-100 px-2 py-1 rounded-md">{quality.toFixed(1)}</span></label>
-                                <input 
-                                    type="range" min="0.5" max="10.0" step="0.5" 
-                                    value={quality} 
+                                <input
+                                    type="range" min="0.5" max="10.0" step="0.5"
+                                    value={quality}
                                     onChange={(e) => setQuality(parseFloat(e.target.value))}
                                     className="w-full"
                                 />
@@ -477,8 +601,8 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                                 </p>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-600 mb-2">種別:</label>
-                                    <select 
-                                        value={selectedImage.type} 
+                                    <select
+                                        value={selectedImage.type}
                                         onChange={(e) => handleTypeChange(selectedImage.id, e.target.value)}
                                         className="w-full p-2 border border-gray-300 rounded-lg"
                                     >
@@ -490,7 +614,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                                         <p className="text-sm text-gray-800">
                                             <span className="font-semibold">出力サイズ:</span> {`${selectedImage.targetSize.w} x ${selectedImage.targetSize.h} px`}
                                         </p>
-                                        <button 
+                                        <button
                                             onClick={() => handleCropAdjust(selectedImage.id)}
                                             className="w-full py-2 px-4 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-colors text-sm flex items-center justify-center"
                                         >
@@ -506,7 +630,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                             </div>
                         )}
                     </div>
-                    
+
                     <footer className="p-4 border-t border-gray-200 bg-white flex justify-between items-center flex-shrink-0">
                         <button onClick={onBack} className="flex items-center px-6 py-2 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors">
                             <RotateCcw size={16} className="mr-2"/>
@@ -521,7 +645,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
             </main>
 
             {croppingImageId && (
-                <CropModal 
+                <CropModal
                     image={croppingImage}
                     onClose={() => setCroppingImageId(null)}
                     onSave={handleCropSave}
@@ -545,7 +669,7 @@ const DownloadScreen = ({ zipBlob, onRestart }) => {
         <div className="w-full h-full flex flex-col">
             <header className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">
-                媒体別リサイズツール <span className="font-normal text-gray-500">(β版) (ステップ3)</span>
+                メディア別一括リサイズツール <span className="font-normal text-gray-500">(β版) (ステップ3)</span>
               </h2>
             </header>
             <main className="flex-grow w-full h-full flex flex-col items-center justify-center text-center">
@@ -657,6 +781,8 @@ export default function App() {
           thumbnailUrl,
           type: detectImageType(file.name),
           cropData: null,
+          isProcessed: false,
+          processedMedia: null,
         });
       } catch(err) {
         console.error("Error processing file:", file.name, err);
