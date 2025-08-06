@@ -16,7 +16,7 @@ const JSZIP_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min
 const FILESAVER_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js';
 
 
-// 媒体ごとのリサイズ定義
+// メディアごとのリサイズ定義
 const RESIZE_DEFINITIONS = {
   EPARK: {
     '写真': { w: 660, h: 440 },
@@ -310,7 +310,7 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
         <h1 className="text-3xl font-bold text-gray-800">
           メディア別一括リサイズツール <span className="text-lg font-normal text-gray-500">(β版)</span>
         </h1>
-        <p className="text-gray-600 mt-2 mb-10">複数の写真を、指定の媒体サイズに一括変換します。</p>
+        <p className="text-gray-600 mt-2 mb-10">複数の写真を、指定のメディアサイズに一括変換します。</p>
         <div className={`w-full h-80 rounded-2xl flex flex-col items-center justify-center transition-colors duration-300 bg-gray-50`}>
           <div className="flex flex-col items-center">
             <UploadCloud className="w-16 h-16 text-gray-400 mb-4" />
@@ -463,7 +463,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
 
     useEffect(() => {
         const processThumbnails = async () => {
-          // 更新が必要な画像（未処理 or 媒体が変更された）を特定
+          // 更新が必要な画像（未処理 or メディアが変更された）を特定
           const imagesToUpdate = images.filter(img => !img.isProcessed || img.processedMedia !== media);
           if (imagesToUpdate.length === 0) return;
 
@@ -537,7 +537,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
     const handleProcessClick = () => {
         const imagesToProcess = images.filter(img => RESIZE_DEFINITIONS[media]?.[img.type]);
         if (imagesToProcess.length === 0) {
-            setErrors(['処理対象の画像がありません。媒体や種別を確認してください。']);
+            setErrors(['処理対象の画像がありません。メディアや種別を確認してください。']);
             return;
         }
         onProcess(imagesToProcess, media, quality / 10.0);
@@ -589,7 +589,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                         <div className="space-y-4">
                             <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">全体設定</h3>
                             <div>
-                                <label className="block text-sm font-medium text-gray-600 mb-2">媒体選択:</label>
+                                <label className="block text-sm font-medium text-gray-600 mb-2">メディア選択:</label>
                                 <select value={media} onChange={(e) => setMedia(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg">
                                     {Object.keys(RESIZE_DEFINITIONS).map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
@@ -637,7 +637,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                                     </>
                                 ) : (
                                     <div className="text-sm text-yellow-600 bg-yellow-100 p-2 rounded-md text-center">
-                                        この媒体では「ロゴ」は対象外です
+                                        このメディアでは「ロゴ」は対象外です
                                     </div>
                                 )}
                             </div>
