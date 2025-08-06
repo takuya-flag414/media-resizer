@@ -4,7 +4,7 @@ import { useDropzone } from 'react-dropzone';
 // import 'cropperjs/dist/cropper.css'; // Replaced with CDN
 // import JSZip from 'jszip'; // Replaced with CDN
 // import { saveAs } from 'file-saver'; // Replaced with CDN
-import { UploadCloud, Image as ImageIcon, Scissors, ChevronsRight, Download, RotateCcw, Settings, X, FileText, Bot, User, HardDriveDownload, Sparkles, AlertCircle, Loader } from 'lucide-react';
+import { UploadCloud, Image as ImageIcon, Scissors, ChevronsRight, Download, RotateCcw, Settings, X, FileText, Bot, User, HardDriveDownload, Sparkles, AlertCircle, Loader, BookOpen } from 'lucide-react';
 
 // === Helper Functions & Constants ===
 
@@ -311,7 +311,6 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
           メディア別一括リサイズツール <span className="text-lg font-normal text-gray-500">(β版)</span>
         </h1>
         <p className="text-gray-600 mt-2 mb-10">複数の写真を、指定の媒体サイズに一括変換します。</p>
-        
         <div className={`w-full h-80 rounded-2xl flex flex-col items-center justify-center transition-colors duration-300 bg-gray-50`}>
           <div className="flex flex-col items-center">
             <UploadCloud className="w-16 h-16 text-gray-400 mb-4" />
@@ -331,6 +330,17 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
           </div>
         </div>
         <p className="text-sm text-gray-400 mt-4">(JPG, PNG, HEIC, WebP / 30枚まで)</p>
+        <div className="mt-8">
+            <a 
+                href="/manual.html" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="inline-flex items-center text-gray-600 hover:text-blue-500 hover:underline transition-colors"
+            >
+                <BookOpen size={18} className="mr-2"/>
+                <span>ご利用マニュアル</span>
+            </a>
+        </div>
       </div>
     </div>
   );
@@ -544,10 +554,13 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
 
     return (
         <div className="w-full h-full flex flex-col bg-gray-50">
-            <header className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
-                 <h2 className="text-xl font-semibold text-gray-800">
+            <header className="p-4 border-b border-gray-200 bg-white flex-shrink-0 flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-gray-800">
                     メディア別一括リサイズツール <span className="font-normal text-gray-500">(β版) (ステップ2)</span>
-                 </h2>
+                </h2>
+                <a href="/manual.html" target="_blank" rel="noopener noreferrer" title="ご利用マニュアルを開く" className="p-2 text-gray-400 hover:text-blue-500 transition-colors">
+                    <BookOpen size={24} />
+                </a>
             </header>
 
             <main className="flex-grow flex min-h-0">
@@ -667,10 +680,13 @@ const DownloadScreen = ({ zipBlob, onRestart }) => {
 
     return (
         <div className="w-full h-full flex flex-col">
-            <header className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
-              <h2 className="text-xl font-semibold text-gray-800">
-                メディア別一括リサイズツール <span className="font-normal text-gray-500">(β版) (ステップ3)</span>
-              </h2>
+            <header className="p-4 border-b border-gray-200 bg-white flex-shrink-0 flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  メディア別一括リサイズツール <span className="font-normal text-gray-500">(β版) (ステップ3)</span>
+                </h2>
+                <a href="/manual.html" target="_blank" rel="noopener noreferrer" title="ご利用マニュアルを開く" className="p-2 text-gray-400 hover:text-blue-500 transition-colors">
+                  <BookOpen size={24} />
+                </a>
             </header>
             <main className="flex-grow w-full h-full flex flex-col items-center justify-center text-center">
                 <HardDriveDownload className="w-24 h-24 text-green-500 mb-6" />

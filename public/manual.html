@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>メディア別一括リサイズツールβ版 ご利用マニュアル</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for better typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for macOS-like design */
+        body {
+            /* Use system fonts for a native feel, with Noto Sans JP as a fallback */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", 'Noto Sans JP', sans-serif;
+            background-color: #f6f6f6; /* Lighter gray background */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        h1, h2, h3, h4 {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, 'Noto Sans JP', sans-serif;
+            font-weight: 700;
+        }
+        /* Frosted glass effect for the header */
+        .header-frost {
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        /* Custom card styling */
+        .card {
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            transition: all 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+        }
+        /* Custom code block style */
+        code {
+            background-color: rgba(229, 231, 235, 0.7); /* Slightly transparent */
+            color: #1f2937;
+            padding: 0.2em 0.5em;
+            border-radius: 6px;
+            font-size: 0.9em;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        /* Icon styling */
+        .icon {
+            display: inline-block;
+            width: 1.2em;
+            height: 1.2em;
+            vertical-align: -0.25em;
+            margin-right: 0.5em;
+            stroke-width: 2;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Sticky Header with Frost Effect -->
+    <header class="header-frost sticky top-0 z-10 border-b border-gray-200/80">
+        <div class="container mx-auto max-w-4xl p-4 flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-bold text-gray-900">メディア別一括リサイズツールβ版</h1>
+                <p class="text-sm text-gray-600">ご利用マニュアル</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto max-w-4xl p-4 sm:p-6 md:p-8">
+        <main class="space-y-16">
+            
+            <!-- Section: Overview -->
+            <section>
+                <h2 class="text-2xl font-bold mb-6 flex items-center">
+                    <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    全体の流れ
+                </h2>
+                <p class="mb-6 text-gray-600">操作は大きく分けて3つのステップで完了します。</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                    <div class="card p-6 rounded-xl shadow-sm">
+                        <div class="text-blue-500 text-3xl font-bold mb-3">1</div>
+                        <h3 class="text-lg font-semibold mb-2">画像のアップロード</h3>
+                        <p class="text-sm text-gray-600">リサイズしたい画像ファイルをアップロードします。</p>
+                    </div>
+                    <div class="card p-6 rounded-xl shadow-sm">
+                        <div class="text-blue-500 text-3xl font-bold mb-3">2</div>
+                        <h3 class="text-lg font-semibold mb-2">リサイズ設定の調整</h3>
+                        <p class="text-sm text-gray-600">媒体や種別を選択し、トリミング範囲を調整します。</p>
+                    </div>
+                    <div class="card p-6 rounded-xl shadow-sm">
+                        <div class="text-blue-500 text-3xl font-bold mb-3">3</div>
+                        <h3 class="text-lg font-semibold mb-2">処理とダウンロード</h3>
+                        <p class="text-sm text-gray-600">完成した画像をZIPファイルでダウンロードします。</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Detailed Steps -->
+            <section>
+                <h2 class="text-2xl font-bold mb-6 flex items-center">
+                    <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V4"/><path d="M4 12H8"/><path d="M16 12h4"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                    各ステップの詳細な使い方
+                </h2>
+                
+                <div class="space-y-12">
+                    <!-- Step 1 -->
+                    <div class="p-6 bg-white/80 rounded-xl border border-gray-200/80">
+                        <h3 class="text-xl font-semibold mb-4">【ステップ1】 画像をアップロードする</h3>
+                        <p class="text-gray-600">まず、リサイズしたい画像ファイルをツールに読み込ませます。アップロード方法は2通りあります。</p>
+                        <ul class="list-disc list-outside space-y-2 pl-6 mt-4 text-gray-600">
+                            <li><strong>方法1：ドラッグ＆ドロップ</strong><br>画面上のどこにでも、画像ファイルや画像が入ったフォルダを直接ドラッグ＆ドロップしてください。</li>
+                            <li><strong>方法2：ファイルを選択</strong><br>「ファイルを選択」ボタンをクリックするとファイル選択画面が開くので、そこから画像ファイルを選択します。</li>
+                        </ul>
+                        <div class="mt-4 bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex items-start">
+                            <svg class="icon flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+                            <div>
+                                <h4 class="font-bold">TIPS</h4>
+                                <ul class="list-disc list-inside mt-2 text-sm">
+                                    <li><strong>対応ファイル形式:</strong> <code>JPG</code>, <code>PNG</code>, <code>HEIC</code>, <code>WebP</code></li>
+                                    <li><strong>アップロード上限:</strong> 一度に30枚まで、1ファイルあたり10MBまで</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="p-6 bg-white/80 rounded-xl border border-gray-200/80">
+                        <h3 class="text-xl font-semibold mb-4">【ステップ2】 リサイズ設定を調整する</h3>
+                        <p class="text-gray-600">アップロードが完了すると編集画面に切り替わります。画面は「左側の画像一覧エリア」と「右側の操作パネル」で構成されています。</p>
+                        
+                        <h4 class="text-lg font-semibold pt-4 mt-4 border-t border-gray-200">1. 全体設定（操作パネル上部）</h4>
+                        <ul class="list-disc list-outside space-y-2 pl-6 mt-2 text-gray-600">
+                            <li><strong>媒体選択:</strong> ドロップダウンメニューから、画像を掲載したい媒体（<code>EPARK</code> または <code>ピークマネージャー</code>）を選択します。</li>
+                            <li><strong>画質:</strong> スライダーで出力画像の画質を調整します（1.0〜10.0）。通常は<code>9.0</code>のままで問題ありません。</li>
+                        </ul>
+
+                        <h4 class="text-lg font-semibold pt-4 mt-4 border-t border-gray-200">2. 個別設定（画像を選択して調整）</h4>
+                        <ul class="list-disc list-outside space-y-2 pl-6 mt-2 text-gray-600">
+                            <li><strong>画像を選択:</strong> 左側の画像一覧から設定したい画像をクリックします（選択中の画像は青い枠で囲まれます）。</li>
+                            <li><strong>種別を変更:</strong> 操作パネルの「種別」でカテゴリー（<code>写真</code>, <code>スタッフ</code>, <code>ロゴ</code>）を変更できます。</li>
+                            <li><strong>トリミング調整:</strong> 「トリミング調整」ボタンで切り抜き範囲を調整します。調整画面ではドラッグで範囲の移動、枠の四隅のドラッグで拡大・縮小が可能です。</li>
+                        </ul>
+                        <div class="mt-4 bg-yellow-50 border border-yellow-200 text-yellow-900 p-4 rounded-lg flex items-start">
+                             <svg class="icon flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                            <div>
+                                <h4 class="font-bold">注意</h4>
+                                <p class="mt-1 text-sm">媒体によっては、特定の種別（例：ピークマネージャーの「ロゴ」）がリサイズ対象外となる場合があります。その場合、画像カードに「対象外」と表示されます。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="p-6 bg-white/80 rounded-xl border border-gray-200/80">
+                        <h3 class="text-xl font-semibold mb-4">【ステップ3】 リサイズを実行してダウンロードする</h3>
+                        <p class="text-gray-600">すべての設定が完了したら、画像を生成します。</p>
+                        <ol class="list-decimal list-outside space-y-2 pl-6 mt-4 text-gray-600">
+                            <li><strong>リサイズを実行:</strong> 操作パネル右下の「リサイズを実行」ボタンをクリックします。</li>
+                            <li><strong>ZIPファイルをダウンロード:</strong> 処理完了後、ダウンロード画面の「ZIPファイルをダウンロード」ボタンをクリックします。</li>
+                        </ol>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: UI Explanation -->
+            <section>
+                <h2 class="text-2xl font-bold mb-6 flex items-center">
+                    <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+                    画面（各ボタン）の説明
+                </h2>
+                <div class="space-y-6">
+                    <div class="p-4 bg-white/80 rounded-lg border border-gray-200/80">
+                        <h3 class="text-lg font-semibold mb-2">編集画面（ステップ2）のボタン</h3>
+                        <ul class="list-disc list-outside space-y-2 pl-6 text-sm text-gray-600">
+                            <li><strong>媒体選択:</strong> 出力先の媒体を選びます。ここの選択に応じて、画像の出力サイズが決まります。</li>
+                            <li><strong>画質:</strong> 出力する画像の品質を調整します。数値が高いほど高画質になります。</li>
+                            <li><strong>種別:</strong> 選択している画像の種類（写真、スタッフ、ロゴ）を設定します。</li>
+                            <li><strong>トリミング調整:</strong> 画像の切り抜き範囲を手動で調整したい場合に使用します。</li>
+                            <li><strong>最初に戻る:</strong> 現在の作業をすべて破棄して、最初のファイルアップロード画面に戻ります。</li>
+                            <li><strong>リサイズを実行:</strong> すべての設定を確定し、画像の処理を開始します。</li>
+                        </ul>
+                    </div>
+                    <div class="p-4 bg-white/80 rounded-lg border border-gray-200/80">
+                        <h3 class="text-lg font-semibold mb-2">ダウンロード画面（ステップ3）のボタン</h3>
+                        <ul class="list-disc list-outside space-y-2 pl-6 text-sm text-gray-600">
+                            <li><strong>ZIPファイルをダウンロード:</strong> 処理が完了したすべての画像を、一つのZIPファイルとしてダウンロードします。</li>
+                            <li><strong>最初に戻る:</strong> ダウンロード後、新たに別の作業を始めたい場合に使用します。最初のファイルアップロード画面に戻ります。</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Troubleshooting -->
+            <section>
+                <h2 class="text-2xl font-bold mb-6 flex items-center">
+                    <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 18h-6a4 4 0 1 0 0-8h4a4 4 0 1 1 0 8Z"/><path d="M12 12V6"/><path d="M12 22v-2"/></svg>
+                    トラブルシューティング
+                </h2>
+                <div class="space-y-4">
+                    <div class="p-4 bg-white/80 rounded-lg border border-gray-200/80">
+                        <h3 class="font-semibold">Q. 画像をアップロードできない、またはエラーメッセージが表示される</h3>
+                        <p class="text-sm text-gray-700 mt-2"><strong>A.</strong> 以下の点をご確認ください。</p>
+                        <ul class="list-disc list-outside space-y-1 pl-6 mt-2 text-sm text-gray-600">
+                            <li>ファイル形式は正しいですか？ (<code>JPG</code>, <code>PNG</code>, <code>HEIC</code>, <code>WebP</code>)</li>
+                            <li>ファイルの数は多すぎませんか？ (一度に30枚まで)</li>
+                            <li>ファイルサイズが大きすぎませんか？ (1ファイルあたり10MBまで)</li>
+                            <li>画面上部にエラー内容が表示されますので、そちらもご確認ください。</li>
+                        </ul>
+                    </div>
+                    <div class="p-4 bg-white/80 rounded-lg border border-gray-200/80">
+                        <h3 class="font-semibold">Q. 「対象外」と表示されてしまう</h3>
+                        <p class="text-sm text-gray-700 mt-2"><strong>A.</strong> 選択した<strong>媒体</strong>と<strong>種別</strong>の組み合わせによっては、リサイズ処理の対象外となる場合があります。（例: <code>ピークマネージャー</code>媒体における<code>ロゴ</code>種別）<br>別の媒体を選択するか、画像の種別を変更することで解決する場合があります。</p>
+                    </div>
+                    <div class="p-4 bg-white/80 rounded-lg border border-gray-200/80">
+                        <h3 class="font-semibold">Q. 処理が終わらない、または画面が固まってしまった</h3>
+                        <p class="text-sm text-gray-700 mt-2"><strong>A.</strong> 通信環境が不安定な場合や、非常に大きな画像を多数処理した場合に発生することがあります。お手数ですが、ページを再読み込み（リフレッシュ）してから、再度操作をお試しください。</p>
+                    </div>
+                    <div class="p-4 bg-white/80 rounded-lg border border-gray-200/80">
+                        <h3 class="font-semibold">Q. ダウンロードしたファイルが開けない</h3>
+                        <p class="text-sm text-gray-700 mt-2"><strong>A.</strong> ファイルはZIP形式で圧縮されています。ファイルを展開（解凍）する必要があります。<br>
+                            - <strong>Windowsの場合:</strong> ファイルを右クリック →「すべて展開」を選択<br>
+                            - <strong>Macの場合:</strong> ファイルをダブルクリック
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+        
+        <!-- Footer -->
+        <footer class="text-center mt-16 pt-8 border-t border-gray-200">
+            <p class="text-xs text-gray-500">&copy; メディア別一括リサイズツール</p>
+        </footer>
+
+    </div>
+
+</body>
+</html>
