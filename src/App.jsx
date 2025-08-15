@@ -1,6 +1,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { UploadCloud, Scissors, ChevronsRight, Download, RotateCcw, Settings, X, AlertCircle, Loader, BookOpen, Check } from 'lucide-react';
+import { UploadCloud, Scissors, ChevronsRight, Download, RotateCcw, X, AlertCircle, Loader, BookOpen, Check, Bot } from 'lucide-react';
+import * as tf from '@tensorflow/tfjs';
+// WebGLバックエンドを明示的にインポートして登録します
+import '@tensorflow/tfjs-backend-webgl';
+import * as poseDetection from '@tensorflow-models/pose-detection';
+
 
 // === CDN & ライブラリの定義 ===
 
@@ -10,6 +15,10 @@ const CROPPER_JS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/c
 const CROPPER_CSS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css';
 const JSZIP_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
 const FILESAVER_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js';
+
+// --- 追加ライブラリ ---
+// npm install @tensorflow/tfjs @tensorflow-models/pose-detection
+// で以下のライブラリをインストールする必要があります。
 
 
 // === 定数とヘルパー関数 ===
@@ -42,31 +51,105 @@ const detectImageType = (fileName) => {
 
 
 /**
- * サムネイルを生成する（中央トリミングまたは手動トリミング）
+ * 自動認識を行い、トリミング領域を計算する
+ * @param {HTMLImageElement} image 元画像
+ * @param {{w: number, h: number}} targetSize 出力サイズ
+ * @param {poseDetection.PoseDetector} detector 姿勢検出モデル
+ * @returns {Promise<object|null>} トリミング領域のデータ、またはnull
+ */
+const getAutoCropRegion = async (image, targetSize, detector) => {
+    if (!detector) {
+        console.error('Detector not loaded for auto crop region');
+        return null;
+    }
+    try {
+        detector.reset();
+        const poses = await detector.estimatePoses(image);
+
+        if (poses && poses.length > 0) {
+            const keypoints = poses[0].keypoints;
+            const nose = keypoints.find(k => k.name === 'nose');
+            const leftShoulder = keypoints.find(k => k.name === 'left_shoulder');
+            const rightShoulder = keypoints.find(k => k.name === 'right_shoulder');
+
+            if (nose && leftShoulder && rightShoulder) {
+                const targetAspectRatio = targetSize.w / targetSize.h;
+                const shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+                const shoulderCenterY = (leftShoulder.y + rightShoulder.y) / 2;
+                const cropAnchorY = nose.y * 0.5 + shoulderCenterY * 0.5;
+
+                const maxCropWidthFromX = 2 * Math.min(shoulderCenterX, image.width - shoulderCenterX);
+                const maxCropHeightFromY = Math.min(cropAnchorY / 0.55, (image.height - cropAnchorY) / 0.45);
+
+                let cropWidth, cropHeight;
+                if (maxCropWidthFromX / targetAspectRatio <= maxCropHeightFromY) {
+                    cropWidth = maxCropWidthFromX;
+                    cropHeight = cropWidth / targetAspectRatio;
+                } else {
+                    cropHeight = maxCropHeightFromY;
+                    cropWidth = cropHeight * targetAspectRatio;
+                }
+
+                let cropX = shoulderCenterX - (cropWidth * 0.5);
+                let cropY = cropAnchorY - (cropHeight * 0.5);
+
+                cropX = Math.max(0, Math.min(cropX, image.width - cropWidth));
+                cropY = Math.max(0, Math.min(cropY, image.height - cropHeight));
+                
+                return { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error("自動トリミング領域の計算中にエラー:", error);
+        return null;
+    }
+};
+
+
+/**
+ * サムネイルを生成する（自動認識、手動、中央トリミング対応）
  * @param {string} imageUrl 元画像のURL
  * @param {{w: number, h: number}} targetSize 出力サイズ
  * @param {object | null} cropData Cropper.jsのデータ (手動トリミング用)
+ * @param {string} imageType 画像種別
+ * @param {poseDetection.PoseDetector | null} detector 姿勢検出モデル
  * @returns {Promise<string>} サムネイルのData URL
  */
-const createOrUpdateThumbnail = (imageUrl, targetSize, cropData = null) => {
+const createOrUpdateThumbnail = (imageUrl, targetSize, cropData = null, imageType = '写真', detector = null) => {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.crossOrigin = 'anonymous';
     image.src = imageUrl;
 
-    image.onload = () => {
+    image.onload = async () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const THUMB_SIZE = 200;
 
-      // 1. ソース領域を計算
       let sourceX, sourceY, sourceWidth, sourceHeight;
-      if (cropData) { // 手動トリミングデータがある場合
+      let autoCropRegion = null;
+
+      // 1. 手動トリミングデータがある場合、最優先
+      if (cropData) {
         sourceX = cropData.x;
         sourceY = cropData.y;
         sourceWidth = cropData.width;
         sourceHeight = cropData.height;
-      } else { // 自動中央トリミング
+      } 
+      // 2. 手動でなく、種別が「スタッフ」の場合、自動認識を試みる
+      else if (imageType === 'スタッフ' && detector) {
+        autoCropRegion = await getAutoCropRegion(image, targetSize, detector);
+        if (autoCropRegion) {
+          sourceX = autoCropRegion.x;
+          sourceY = autoCropRegion.y;
+          sourceWidth = autoCropRegion.width;
+          sourceHeight = autoCropRegion.height;
+        }
+      }
+
+      // 3. 手動でも自動でもない場合、中央トリミングにフォールバック
+      if (typeof sourceX === 'undefined') {
         const imageAspect = image.width / image.height;
         const targetAspect = targetSize.w / targetSize.h;
         if (imageAspect > targetAspect) {
@@ -82,7 +165,7 @@ const createOrUpdateThumbnail = (imageUrl, targetSize, cropData = null) => {
         }
       }
 
-      // 2. 描画先キャンバスのサイズを計算
+      // 描画先キャンバスのサイズを計算
       const previewAspect = sourceWidth / sourceHeight;
       let previewWidth, previewHeight;
       if (previewAspect >= 1) {
@@ -96,7 +179,7 @@ const createOrUpdateThumbnail = (imageUrl, targetSize, cropData = null) => {
       canvas.width = previewWidth;
       canvas.height = previewHeight;
 
-      // 3. 描画
+      // 描画
       ctx.drawImage(
         image,
         sourceX, sourceY, sourceWidth, sourceHeight,
@@ -463,7 +546,7 @@ const ImageCard = ({ image, onSelect, isSelected, media }) => {
 /**
  * STEP 2: 確認・個別編集画面
  */
-const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
+const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, modelStatus, detector }) => {
     const [selectedImageId, setSelectedImageId] = useState(null);
     const [media, setMedia] = useState('EPARK');
     const [quality, setQuality] = useState(9.0);
@@ -475,7 +558,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
         }
     }, [images, selectedImageId]);
 
-    // メディアが変更されたら、手動クロップ以外のサムネイルを更新
+    // メディアが変更されたら、サムネイルを更新
     useEffect(() => {
         const updateAllThumbnailsForMedia = async () => {
             const promises = images.map(async (image) => {
@@ -483,15 +566,15 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                     const targetSize = RESIZE_DEFINITIONS[media]?.[image.type];
                     if (targetSize) {
                         try {
-                            const newThumbnailUrl = await createOrUpdateThumbnail(image.originalUrl, targetSize, null);
+                            const newThumbnailUrl = await createOrUpdateThumbnail(image.originalUrl, targetSize, null, image.type, detector);
                             return { ...image, thumbnailUrl: newThumbnailUrl };
                         } catch (e) {
                             console.error("Thumbnail update failed:", e);
-                            return image; // エラー時は元画像のまま
+                            return image;
                         }
                     }
                 }
-                return image; // 手動クロップ済みか対象外の場合は変更しない
+                return image;
             });
             const updatedImages = await Promise.all(promises);
             setImages(updatedImages);
@@ -500,8 +583,34 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
         if (images.length > 0) {
             updateAllThumbnailsForMedia();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [media]); // mediaが変更された時だけ実行
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [media]);
+
+    // AIモデルの準備が完了したら、「スタッフ」画像のサムネイルを再生成
+    useEffect(() => {
+        if (modelStatus === 'ready' && detector) {
+            const updateStaffThumbnails = async () => {
+                const promises = images.map(async (image) => {
+                    if (image.type === 'スタッフ' && !image.cropData) {
+                        const targetSize = RESIZE_DEFINITIONS[media]?.[image.type];
+                        if (targetSize) {
+                            try {
+                                const newThumbnailUrl = await createOrUpdateThumbnail(image.originalUrl, targetSize, null, 'スタッフ', detector);
+                                return { ...image, thumbnailUrl: newThumbnailUrl };
+                            } catch (e) {
+                                console.error("Staff thumbnail update failed:", e);
+                            }
+                        }
+                    }
+                    return image;
+                });
+                const updatedImages = await Promise.all(promises);
+                setImages(updatedImages);
+            };
+            updateStaffThumbnails();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [modelStatus, detector]);
 
     // 画像の種別が変更されたら、その画像のサムネイルを更新
     const handleTypeChange = async (id, type) => {
@@ -512,7 +621,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
         let newThumbnailUrl = imageToUpdate.thumbnailUrl;
 
         if (targetSize) {
-            newThumbnailUrl = await createOrUpdateThumbnail(imageToUpdate.originalUrl, targetSize, null);
+            newThumbnailUrl = await createOrUpdateThumbnail(imageToUpdate.originalUrl, targetSize, null, type, detector);
         }
         
         setImages(prev => prev.map(img => 
@@ -531,7 +640,7 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
         if (!targetSize) return;
 
         try {
-            const newThumbnailUrl = await createOrUpdateThumbnail(imageToUpdate.originalUrl, targetSize, cropData);
+            const newThumbnailUrl = await createOrUpdateThumbnail(imageToUpdate.originalUrl, targetSize, cropData, imageToUpdate.type, detector);
             setImages(prevImages =>
                 prevImages.map(img =>
                     img.id === id ? { ...img, cropData: cropData, thumbnailUrl: newThumbnailUrl } : img
@@ -560,6 +669,8 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
     if(croppingImage) {
         croppingImage.targetSize = RESIZE_DEFINITIONS[media]?.[croppingImage.type];
     }
+
+    const isProcessingDisabled = modelStatus === 'loading';
 
     return (
         <div className="w-full h-full flex flex-col bg-gray-100">
@@ -616,6 +727,12 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                                     >
                                         {IMAGE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                                     </select>
+                                    {selectedImage.type === 'スタッフ' && modelStatus === 'ready' && (
+                                        <div className="mt-2 flex items-center text-xs text-blue-600 bg-blue-50 p-2 rounded-md">
+                                            <Bot size={14} className="mr-2 flex-shrink-0" />
+                                            <span>自動認識トリミングが適用されます。</span>
+                                        </div>
+                                    )}
                                 </div>
                                 {selectedImage.targetSize ? (
                                     <button
@@ -639,8 +756,13 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
                         <button onClick={onBack} className="flex items-center px-6 py-3 rounded-xl text-gray-700 font-semibold bg-gray-200 hover:bg-gray-300 transition">
                             <RotateCcw size={18} className="mr-2" /> 戻る
                         </button>
-                        <button onClick={handleProcessClick} className="flex items-center px-6 py-3 rounded-xl text-white font-bold bg-blue-600 hover:bg-blue-700 transform hover:-translate-y-0.5 transition-all duration-200 shadow-lg">
-                            リサイズを実行 <ChevronsRight size={20} className="ml-2" />
+                        <button 
+                            onClick={handleProcessClick} 
+                            disabled={isProcessingDisabled}
+                            className="flex items-center px-6 py-3 rounded-xl text-white font-bold bg-blue-600 hover:bg-blue-700 transform hover:-translate-y-0.5 transition-all duration-200 shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none disabled:transform-none"
+                        >
+                            {isProcessingDisabled ? 'モデル準備中...' : 'リサイズを実行'}
+                            {!isProcessingDisabled && <ChevronsRight size={20} className="ml-2" />}
                         </button>
                     </footer>
                 </div>
@@ -706,6 +828,9 @@ export default function App() {
   const [zipBlob, setZipBlob] = useState(null);
   const [errors, setErrors] = useState([]);
   
+  const [detector, setDetector] = useState(null);
+  const [modelStatus, setModelStatus] = useState('loading'); // 'loading', 'ready', 'error'
+
   // 外部スクリプトの読み込み
   const { isLoaded: isHeicLoaded, error: heicLoadError } = useScript(HEIC_CDN_URL);
   const { isLoaded: isCropperLoaded, error: cropperLoadError } = useScript(CROPPER_JS_CDN);
@@ -722,6 +847,28 @@ export default function App() {
       document.head.removeChild(link);
     };
   }, []);
+
+  // 自動認識モデルを読み込むEffect
+  useEffect(() => {
+    const loadModel = async () => {
+        try {
+            console.log("自動認識モデルの読み込みを開始...");
+            await tf.setBackend('webgl');
+            const model = poseDetection.SupportedModels.MoveNet;
+            const detectorConfig = { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING };
+            const loadedDetector = await poseDetection.createDetector(model, detectorConfig);
+            setDetector(loadedDetector);
+            setModelStatus('ready');
+            console.log("自動認識モデルの読み込みが完了しました。");
+        } catch (error) {
+            console.error("自動認識モデルの読み込みに失敗しました:", error);
+            setModelStatus('error');
+            handleFileErrors(['人物自動認識モデルの読み込みに失敗しました。ページを再読み込みしてください。']);
+        }
+    };
+    loadModel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 初回レンダリング時に一度だけ実行
   
   // スクリプト読み込み完了チェックとエラーハンドリング
   useEffect(() => {
@@ -767,7 +914,7 @@ export default function App() {
         
         let thumbnailUrl = originalUrl; // フォールバック
         if (targetSize) {
-            thumbnailUrl = await createOrUpdateThumbnail(originalUrl, targetSize);
+            thumbnailUrl = await createOrUpdateThumbnail(originalUrl, targetSize, null, type, detector);
         }
 
         newImages.push({
@@ -833,6 +980,32 @@ export default function App() {
         image.onerror = reject;
     });
   };
+  
+  const getAutoCroppedCanvas = (imageUrl, targetSize, detector) => {
+    return new Promise((resolve) => {
+        const image = new Image();
+        image.crossOrigin = 'anonymous';
+        image.src = imageUrl;
+
+        image.onload = async () => {
+            const region = await getAutoCropRegion(image, targetSize, detector);
+            if (region) {
+                const canvas = document.createElement('canvas');
+                canvas.width = targetSize.w;
+                canvas.height = targetSize.h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(image, region.x, region.y, region.width, region.height, 0, 0, targetSize.w, targetSize.h);
+                resolve(canvas);
+            } else {
+                resolve(null); // 領域が見つからなければnullを返す
+            }
+        };
+        image.onerror = () => {
+            console.error(`画像の読み込みに失敗しました: ${image.src}`);
+            resolve(null);
+        };
+    });
+  };
 
   const handleProcess = async (imagesToProcess, media, quality) => {
     if (!window.JSZip) {
@@ -851,10 +1024,26 @@ export default function App() {
       }
       
       try {
-        const canvas = await getCroppedCanvas(image.originalUrl, image.cropData, targetSize);
+        let canvas;
+        // 種別が'スタッフ'、手動クロップ未設定、モデル準備完了の場合、自動認識を試みる
+        if (image.type === 'スタッフ' && !image.cropData && detector && modelStatus === 'ready') {
+            console.log(`自動認識を開始: ${image.file.name}`);
+            canvas = await getAutoCroppedCanvas(image.originalUrl, targetSize, detector);
+            
+            // 自動認識が失敗した場合（nullが返された場合）、通常の中央トリミングにフォールバック
+            if (!canvas) {
+                console.log(`自動認識が失敗したため、中央トリミングにフォールバック: ${image.file.name}`);
+                canvas = await getCroppedCanvas(image.originalUrl, null, targetSize);
+            }
+        } else {
+            // それ以外の場合は、従来通りの処理（手動クロップまたは中央トリミング）
+            canvas = await getCroppedCanvas(image.originalUrl, image.cropData, targetSize);
+        }
+
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
         const fileNameWithoutExt = image.file.name.substring(0, image.file.name.lastIndexOf('.')) || image.file.name;
         zip.file(`${fileNameWithoutExt}.jpg`, blob);
+
       } catch (err) {
         console.error("Error processing image:", image.file.name, err);
         handleFileErrors([`画像処理エラー: ${image.file.name}`]);
@@ -884,7 +1073,7 @@ export default function App() {
       case 'loading':
         return <LoadingScreen title="画像を読み込んでいます..." progress={loadingProgress.progress} total={loadingProgress.total} />;
       case 'edit':
-        return <EditScreen images={images} setImages={setImages} onProcess={handleProcess} onBack={handleRestart} setErrors={handleFileErrors}/>;
+        return <EditScreen images={images} setImages={setImages} onProcess={handleProcess} onBack={handleRestart} setErrors={handleFileErrors} modelStatus={modelStatus} detector={detector} />;
       case 'processing':
         return <LoadingScreen title="画像を処理中です..." progress={processingProgress.progress} total={processingProgress.total} />;
       case 'download':
@@ -901,24 +1090,19 @@ export default function App() {
       <div className="font-sans w-full h-screen flex flex-col antialiased bg-gray-100">
           {showHeader && (
             <header className="flex-shrink-0 bg-white/90 backdrop-blur-sm border-b border-gray-200 z-10">
-              {/* ↓↓↓ このdivの内部構成を修正します ↓↓↓ */}
               <div className="flex items-center justify-between h-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Item 1: Title (flex-1を削除) */}
                 <div>
                     <h1 className="text-lg font-bold text-gray-800">メディア別リサイズ</h1>
                 </div>
-                {/* Item 2: Workflow Indicator (flex-1とjustify-centerを削除) */}
                 <div>
                     <WorkflowIndicator currentScreen={screen} />
                 </div>
-                {/* Item 3: Manual Icon (flex-1とjustify-endを削除) */}
                 <div>
                     <a href="/manual.html" target="_blank" rel="noopener noreferrer" title="ご利用マニュアルを開く" className="p-2 text-gray-500 hover:text-blue-600 transition-colors">
                         <BookOpen size={22} />
                     </a>
                 </div>
               </div>
-              {/* ↑↑↑ ここまで修正 ↑↑↑ */}
             </header>
           )}
           <div className={`flex-grow relative min-h-0 flex flex-col ${!showHeader ? 'h-full' : ''}`}>
