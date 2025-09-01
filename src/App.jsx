@@ -178,20 +178,34 @@ const AppHeader = ({ currentStep, steps, isLoading }) => {
         <div className="flex items-center">
           {steps.map((step, index) => {
             const stepNumber = index + 1;
-            const isCompleted = currentStep > stepNumber;
+
+            let activeStep = currentStep;
+            if (isLoading) {
+              activeStep = currentStep - 1;
+              if (activeStep < 1) {
+                activeStep = 1;
+              }
+            }
+
+            const isCompleted = activeStep > stepNumber;
             const isCurrent = currentStep === stepNumber;
+            const isLoadingThisStep = isLoading && activeStep === stepNumber;
 
             return (
               <React.Fragment key={step.id}>
                 <div className="flex flex-col items-center w-16 sm:w-24">
                   <div
                     className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 border-2
-                      ${isCompleted ? 'bg-blue-500 border-blue-500 text-white' : ''}
-                      ${isCurrent ? 'bg-white border-blue-500 text-blue-600 ring-4 ring-blue-500/20' : ''}
-                      ${!isCompleted && !isCurrent ? 'bg-gray-100 border-gray-300 text-gray-400' : ''}
+                      ${
+                        isCompleted
+                          ? 'bg-blue-500 border-blue-500 text-white'
+                          : (isCurrent && !isLoading) || isLoadingThisStep
+                          ? 'bg-white border-blue-500 text-blue-600 ring-4 ring-blue-500/20'
+                          : 'bg-gray-100 border-gray-300 text-gray-400'
+                      }
                     `}
                   >
-                    {isCurrent && isLoading ? (
+                    {isLoadingThisStep ? (
                       <Loader size={18} className="animate-spin" />
                     ) : isCompleted ? (
                       <Check size={18} />
@@ -199,14 +213,14 @@ const AppHeader = ({ currentStep, steps, isLoading }) => {
                       stepNumber
                     )}
                   </div>
-                  <span className={`mt-2 text-xs font-semibold transition-colors duration-300 ${isCurrent ? 'text-blue-600' : 'text-gray-500'} hidden sm:block`}>
+                  <span className={`mt-2 text-xs font-semibold transition-colors duration-300 ${isCurrent && !isLoading ? 'text-blue-600' : 'text-gray-500'} hidden sm:block`}>
                     {step.name}
                   </span>
                 </div>
 
                 {index < steps.length - 1 && (
                   <div className={`w-4 sm:w-12 h-1 -mx-1 sm:-mx-2 mb-6 transition-colors duration-300 rounded-full
-                    ${currentStep > stepNumber ? 'bg-blue-400' : 'bg-gray-300'}
+                    ${activeStep > stepNumber ? 'bg-blue-400' : 'bg-gray-300'}
                   `} />
                 )}
               </React.Fragment>
@@ -463,7 +477,7 @@ const ImageCard = ({ image, onSelect, isSelected, media }) => {
 };
 
 // 画像一覧・編集画面
-const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
+const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoadingThumbnails }) => {
     const [media, setMedia] = useState('EPARK');
     const [quality, setQuality] = useState(9.0);
     const [croppingImageId, setCroppingImageId] = useState(null);
@@ -477,8 +491,12 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
 
     useEffect(() => {
         const processThumbnails = async () => {
+          setIsLoadingThumbnails(true);
           const imagesToUpdate = images.filter(img => !img.isProcessed || img.processedMedia !== media);
-          if (imagesToUpdate.length === 0) return;
+          if (imagesToUpdate.length === 0) {
+              setIsLoadingThumbnails(false);
+              return;
+          }
 
           const updatedImages = await Promise.all(images.map(async (image) => {
             if (!imagesToUpdate.some(u => u.id === image.id)) return image;
@@ -494,10 +512,11 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors }) => {
             }
           }));
           setImages(updatedImages);
+          setIsLoadingThumbnails(false);
         };
         processThumbnails();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [media, images]);
+      }, [media]);
 
     const handleTypeChange = (id, type) => {
         setImages(prev => prev.map(img => img.id === id ? { ...img, type, cropData: null, isProcessed: false } : img));
@@ -674,7 +693,7 @@ const DownloadScreen = ({ zipBlob, onRestart, onDownload }) => {
 
 // メインアプリケーションコンポーネント
 export default function App() {
-  const [screen, setScreen] = useState('initializing'); // 'initializing', 'upload', 'loading', 'edit', 'processing', 'download'
+  const [screen, setScreen] = useState('initializing');
   const [isDownloadCompleted, setIsDownloadCompleted] = useState(false);
   const [images, setImages] = useState([]);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -682,6 +701,7 @@ export default function App() {
   const [totalFiles, setTotalFiles] = useState(0);
   const [zipBlob, setZipBlob] = useState(null);
   const [errors, setErrors] = useState([]);
+  const [isLoadingThumbnails, setIsLoadingThumbnails] = useState(false);
 
   const { isLoaded: isHeicLoaded, error: heicLoadError } = useScript(HEIC_CDN_URL);
   const { isLoaded: isCropperLoaded, error: cropperLoadError } = useScript(CROPPER_JS_CDN);
@@ -721,6 +741,33 @@ export default function App() {
     }
   }, [isHeicLoaded, isCropperLoaded, isJszipLoaded, isFilesaverLoaded, screen]);
 
+  const generateAndSetInitialThumbnails = async (initialImages) => {
+    setScreen('generating-thumbnails');
+    setLoadingProgress(0);
+    setTotalFiles(initialImages.length);
+    const media = 'EPARK'; // Default media for initial thumbnails
+
+    const updatedImages = [];
+    for (const image of initialImages) {
+        const targetSize = RESIZE_DEFINITIONS[media]?.[image.type];
+        let finalImage = { ...image, isProcessed: true, processedMedia: media };
+
+        if (targetSize) {
+            try {
+                const newThumbnailUrl = await createFinalThumbnail(image.originalUrl, targetSize);
+                finalImage.thumbnailUrl = newThumbnailUrl;
+            } catch (error) {
+                console.error("Initial thumbnail generation failed:", image.file.name, error);
+            }
+        }
+        updatedImages.push(finalImage);
+        setLoadingProgress(prev => prev + 1);
+    }
+
+    setImages(updatedImages);
+    setScreen('edit');
+  };
+
   const handleFilesAccepted = async (files) => {
     if (files.length === 0) return;
     if (files.length > 30) {
@@ -741,17 +788,13 @@ export default function App() {
         }
         const originalUrl = URL.createObjectURL(blob);
         
-        // サムネイル生成はEditScreenで行うため、ここでは単純なURLを設定
-        const tempThumbnail = new Image();
-        tempThumbnail.src = originalUrl;
-        
         setLoadingProgress(prev => prev + 1);
 
         return {
           id: `${file.name}-${Date.now()}-${index}`,
           file,
           originalUrl,
-          thumbnailUrl: originalUrl, // 一時的に元のURLを使う
+          thumbnailUrl: originalUrl, // Temporarily use originalUrl
           type: detectImageType(file.name),
           cropData: null,
           isProcessed: false,
@@ -765,8 +808,7 @@ export default function App() {
       }
     }));
     
-    setImages(newImages.filter(Boolean));
-    setScreen('edit');
+    await generateAndSetInitialThumbnails(newImages.filter(Boolean));
   };
 
   const getCroppedCanvas = (imageUrl, cropData, targetSize) => {
@@ -855,20 +897,28 @@ export default function App() {
   const getCurrentStep = () => {
     if (isDownloadCompleted) return 4;
     switch (screen) {
-        case 'upload': case 'loading': return 1;
+        case 'upload': return 1;
+        case 'loading': 
+        case 'generating-thumbnails': 
         case 'edit': return 2;
-        case 'processing': case 'download': return 3;
+        case 'processing': 
+        case 'download': return 3;
         default: return 0;
     }
   };
   const currentStep = getCurrentStep();
-  const isLoading = screen === 'loading' || screen === 'processing';
+  const isLoading = screen === 'loading' || screen === 'processing' || screen === 'generating-thumbnails' || isLoadingThumbnails;
 
   const renderScreen = () => {
     switch (screen) {
       case 'initializing': return <LoadingScreen title="ライブラリを準備中..." />;
       case 'loading': return <LoadingScreen title="画像を読み込んでいます..." progress={loadingProgress} total={totalFiles} />;
-      case 'edit': return <EditScreen images={images} setImages={setImages} onProcess={handleProcess} onBack={handleRestart} setErrors={handleFileErrors}/>;
+      case 'generating-thumbnails': return <LoadingScreen title="プレビューを生成中..." progress={loadingProgress} total={totalFiles} />;
+      case 'edit': 
+        if (isLoadingThumbnails) {
+          return <LoadingScreen title="プレビューを更新中..." />;
+        }
+        return <EditScreen images={images} setImages={setImages} onProcess={handleProcess} onBack={handleRestart} setErrors={handleFileErrors} setIsLoadingThumbnails={setIsLoadingThumbnails} />;
       case 'processing': return <LoadingScreen title="画像を処理中です..." progress={processingProgress} total={totalFiles} />;
       case 'download': return <DownloadScreen zipBlob={zipBlob} onRestart={handleRestart} onDownload={handleDownload} />;
       case 'upload': default: return <UploadScreen onFilesAccepted={handleFilesAccepted} setErrors={handleFileErrors} />;
@@ -889,3 +939,4 @@ export default function App() {
       </div>
   );
 }
+
