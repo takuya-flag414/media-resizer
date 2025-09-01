@@ -346,7 +346,7 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
             複数の写真を、指定のメディアサイズに一括変換します。
           </p>
           <div 
-            className="relative w-full h-80 sm:h-96 rounded-3xl flex flex-col items-center justify-center 
+            className="relative w-full h-80 sm:h96 rounded-3xl flex flex-col items-center justify-center 
                        bg-white/60 backdrop-blur-xl border border-gray-200/50 shadow-xl p-4"
           >
             <div className="text-center">
@@ -652,32 +652,57 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoad
 
 // ダウンロード画面
 const DownloadScreen = ({ zipBlob, onRestart, onDownload }) => {
+    const [isDownloaded, setIsDownloaded] = useState(false);
+
     const handleDownload = () => {
-      if (window.saveAs && zipBlob) {
-        const timestamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15);
-        const fileName = `resized_images_${timestamp.slice(0,8)}_${timestamp.slice(9)}.zip`;
-        window.saveAs(zipBlob, fileName);
-        if (onDownload) onDownload();
-      }
+      if (isDownloaded || !window.saveAs || !zipBlob) return;
+
+      const timestamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15);
+      const fileName = `resized_images_${timestamp.slice(0,8)}_${timestamp.slice(9)}.zip`;
+      window.saveAs(zipBlob, fileName);
+      setIsDownloaded(true);
+      if (onDownload) onDownload();
     };
 
     return (
         <div className="w-full h-full overflow-y-auto bg-gray-100 flex items-center justify-center">
             <div className="w-full max-w-xl mx-auto px-4 sm:px-8 py-10 sm:py-12 text-center">
                 <div className="relative w-32 h-32 flex items-center justify-center mb-8 mx-auto">
-                    <div className="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full shadow-2xl shadow-green-500/30 opacity-80"></div>
-                    <HardDriveDownload className="w-20 h-20 text-white relative" />
+                    <div className={`absolute inset-0 rounded-full shadow-2xl transition-all duration-500 ${isDownloaded ? 'bg-gradient-to-br from-blue-400 to-sky-500 shadow-blue-500/30' : 'bg-gradient-to-br from-green-400 to-emerald-500 shadow-green-500/30'} opacity-80`}></div>
+                    <div className="relative w-20 h-20">
+                        <HardDriveDownload className={`w-full h-full text-white absolute transition-opacity duration-300 ${isDownloaded ? 'opacity-0' : 'opacity-100'}`} />
+                        <Check className={`w-full h-full text-white absolute transition-opacity duration-300 ${isDownloaded ? 'opacity-100' : 'opacity-0'}`} />
+                    </div>
                 </div>
-                <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 tracking-tight">画像処理が完了しました！</h1>
-                <p className="text-base sm:text-lg text-gray-500 mt-3">下のボタンからZIPファイルをダウンロードしてください。</p>
+                <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 tracking-tight">
+                    {isDownloaded ? 'ダウンロードが完了しました！' : '画像処理が完了しました！'}
+                </h1>
+                <p className="text-base sm:text-lg text-gray-500 mt-3">
+                    {isDownloaded ? 'ファイルをご確認ください。' : '下のボタンからZIPファイルをダウンロードしてください。'}
+                </p>
                 <button
                     onClick={handleDownload}
-                    className="mt-12 flex items-center justify-center w-full max-w-md mx-auto px-8 sm:px-12 py-4 rounded-2xl text-white bg-gradient-to-br from-green-500 to-emerald-600 
-                               font-bold text-lg sm:text-xl shadow-2xl shadow-green-500/40
-                               transform hover:-translate-y-1 transition-all duration-300 ease-in-out"
+                    disabled={isDownloaded}
+                    className={`
+                        mt-12 flex items-center justify-center w-full max-w-md mx-auto px-8 sm:px-12 py-4 rounded-2xl text-white 
+                        font-bold text-lg sm:text-xl shadow-2xl transition-all duration-300 ease-in-out
+                        ${isDownloaded 
+                            ? 'bg-gradient-to-br from-blue-500 to-sky-500 shadow-blue-500/40 cursor-default' 
+                            : 'bg-gradient-to-br from-green-500 to-emerald-600 shadow-green-500/40 transform hover:-translate-y-1'
+                        }
+                    `}
                 >
-                    <Download size={24} className="mr-3" />
-                    <span>ZIPファイルをダウンロード</span>
+                    {isDownloaded ? (
+                        <>
+                            <Check size={24} className="mr-3" />
+                            <span>ダウンロード完了</span>
+                        </>
+                    ) : (
+                        <>
+                            <Download size={24} className="mr-3" />
+                            <span>ZIPファイルをダウンロード</span>
+                        </>
+                    )}
                 </button>
                 <button
                     onClick={onRestart}
