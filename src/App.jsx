@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { UploadCloud, Scissors, ChevronsRight, Download, RotateCcw, X, AlertCircle, Loader, HardDriveDownload, Check, HelpCircle } from 'lucide-react';
+import { UploadCloud, Scissors, ChevronsRight, Download, RotateCcw, X, AlertCircle, Loader, HardDriveDownload, Check, HelpCircle, Megaphone } from 'lucide-react';
 
 // === Helper Functions & Constants ===
 
@@ -171,7 +171,7 @@ const AppHeader = ({ currentStep, steps, isLoading }) => {
   return (
     <header className="bg-white/80 backdrop-blur-lg border-b border-gray-200/80 px-4 sm:px-6 py-3 grid grid-cols-3 items-center flex-shrink-0 h-20 z-10">
       <div className="text-base sm:text-lg font-bold text-gray-800 truncate">
-        メディア別一括リサイズツール (β版)
+        メディア別一括リサイズツール
       </div>
 
       <div className="flex justify-center">
@@ -228,6 +228,8 @@ const AppHeader = ({ currentStep, steps, isLoading }) => {
           })}
         </div>
       </div>
+
+      {/* 
       <div className="flex justify-end">
         <a
           href="manual.html"
@@ -239,6 +241,8 @@ const AppHeader = ({ currentStep, steps, isLoading }) => {
           <HelpCircle size={24} />
         </a>
       </div>
+      */}
+      
     </header>
   );
 };
@@ -451,7 +455,7 @@ const ImageCard = ({ image, onSelect, isSelected, media }) => {
 
     return (
         <div 
-            onClick={() => onSelect(image.id)}
+            onClick={(e) => onSelect(image.id, e)}
             className={`bg-white/60 border rounded-xl overflow-hidden shadow-sm transition-all duration-200 cursor-pointer flex p-3 space-x-3 ${isSelected ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-gray-200/80 hover:shadow-md hover:border-gray-300'}`}
         >
             <div className="w-24 h-24 bg-white border border-gray-200 rounded-md flex-shrink-0 flex items-center justify-center overflow-hidden">
@@ -481,15 +485,12 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoad
     const [media, setMedia] = useState('EPARK');
     const [quality, setQuality] = useState(9.0);
     const [croppingImageId, setCroppingImageId] = useState(null);
-    const [selectedImageId, setSelectedImageId] = useState(null);
+    // 単一選択から複数選択に対応するため、IDを配列で管理します。
+    const [selectedImageIds, setSelectedImageIds] = useState([]);
 
     useEffect(() => {
-        if (images.length > 0 && !selectedImageId) {
-            setSelectedImageId(images[0].id);
-        }
-    }, [images, selectedImageId]);
-
-    useEffect(() => {
+        // メディアを変更した際に選択を解除します。
+        setSelectedImageIds([]);
         const processThumbnails = async () => {
           setIsLoadingThumbnails(true);
           const imagesToUpdate = images.filter(img => !img.isProcessed || img.processedMedia !== media);
@@ -501,14 +502,17 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoad
           const updatedImages = await Promise.all(images.map(async (image) => {
             if (!imagesToUpdate.some(u => u.id === image.id)) return image;
             const targetSize = RESIZE_DEFINITIONS[media]?.[image.type];
-            if (!targetSize) return { ...image, isProcessed: true, processedMedia: media, thumbnailUrl: image.thumbnailUrl };
+            //  cropDataをリセットし、自動トリミングが再計算されるようにします。
+            const imageReset = { ...image, cropData: null, isProcessed: false };
+
+            if (!targetSize) return { ...imageReset, isProcessed: true, processedMedia: media, thumbnailUrl: imageReset.originalUrl };
 
             try {
-              const newThumbnailUrl = await createFinalThumbnail(image.originalUrl, targetSize);
-              return { ...image, thumbnailUrl: newThumbnailUrl, isProcessed: true, processedMedia: media };
+              const newThumbnailUrl = await createFinalThumbnail(imageReset.originalUrl, targetSize);
+              return { ...imageReset, thumbnailUrl: newThumbnailUrl, isProcessed: true, processedMedia: media };
             } catch (error) {
-              console.error("サムネイル生成失敗:", image.file.name, error);
-              return { ...image, isProcessed: true, processedMedia: media };
+              console.error("サムネイル生成失敗:", imageReset.file.name, error);
+              return { ...imageReset, isProcessed: true, processedMedia: media };
             }
           }));
           setImages(updatedImages);
@@ -518,8 +522,13 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoad
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [media]);
 
-    const handleTypeChange = (id, type) => {
-        setImages(prev => prev.map(img => img.id === id ? { ...img, type, cropData: null, isProcessed: false } : img));
+    // 選択された画像の種別を一括で変更する関数
+    const handleBulkTypeChange = (type) => {
+        setImages(prev => prev.map(img =>
+            selectedImageIds.includes(img.id)
+                ? { ...img, type, cropData: null, isProcessed: false } // 種別変更時にcropDataと処理状態をリセット
+                : img
+        ));
     };
 
     const handleCropAdjust = (id) => setCroppingImageId(id);
@@ -547,23 +556,65 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoad
         onProcess(imagesToProcess, media, quality / 10.0);
     };
 
-    const selectedImage = images.find(img => img.id === selectedImageId);
-    if(selectedImage) selectedImage.targetSize = RESIZE_DEFINITIONS[media]?.[selectedImage.type];
+    // 画像クリック時の選択ロジック (Shiftキーでの範囲選択、Ctrl/Cmdキーでの個別選択)
+    const handleSelectImage = (clickedId, e) => {
+        e.stopPropagation(); // イベントの伝播を停止
+
+        const { metaKey, ctrlKey, shiftKey } = e;
+        const isCtrlOrMeta = metaKey || ctrlKey;
+
+        const lastSelectedId = selectedImageIds.length > 0 ? selectedImageIds[selectedImageIds.length - 1] : null;
+
+        if (shiftKey && lastSelectedId) {
+            const lastIndex = images.findIndex(img => img.id === lastSelectedId);
+            const clickedIndex = images.findIndex(img => img.id === clickedId);
+            const start = Math.min(lastIndex, clickedIndex);
+            const end = Math.max(lastIndex, clickedIndex);
+            const rangeIds = images.slice(start, end + 1).map(img => img.id);
+            
+            // 既存の選択範囲と結合し、重複を削除
+            const newSelection = [...new Set([...selectedImageIds, ...rangeIds])];
+            setSelectedImageIds(newSelection);
+
+        } else if (isCtrlOrMeta) {
+            setSelectedImageIds(prev =>
+                prev.includes(clickedId)
+                    ? prev.filter(id => id !== clickedId) // 選択解除
+                    : [...prev, clickedId] // 選択追加
+            );
+        } else {
+            // 通常のクリック: クリックされたものだけを選択
+            setSelectedImageIds([clickedId]);
+        }
+    };
+    
+    // 選択状態に応じた変数定義
+    const selectedCount = selectedImageIds.length;
+    const isSingleSelection = selectedCount === 1;
+    const isMultiSelection = selectedCount > 1;
+    const noSelection = selectedCount === 0;
+
+    const singleSelectedImage = isSingleSelection ? images.find(img => img.id === selectedImageIds[0]) : null;
+    if(singleSelectedImage) singleSelectedImage.targetSize = RESIZE_DEFINITIONS[media]?.[singleSelectedImage.type];
+    
     const croppingImage = images.find(img => img.id === croppingImageId);
     if(croppingImage) croppingImage.targetSize = RESIZE_DEFINITIONS[media]?.[croppingImage.type];
+
 
     return (
         <div className="w-full h-full flex flex-col bg-gray-100">
             <main className="flex-grow flex flex-col md:flex-row min-h-0">
-                <div className="w-full md:w-2/3 border-b md:border-b-0 md:border-r border-gray-200/80 overflow-y-auto p-4">
+                <div className="w-full md:w-2/3 border-b md:border-b-0 md:border-r border-gray-200/80 overflow-y-auto p-4" onClick={() => setSelectedImageIds([])}>
                     <p className="text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
-                        ※一覧のプレビューは軽量なサムネイルです。最終的な出力は元の高画質データから行われます。
+                        Shiftキーで範囲選択、Ctrl(Cmd)キーで複数選択ができます。
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                         {images.map(image => (
                             <ImageCard
-                                key={image.id} image={image} onSelect={setSelectedImageId}
-                                isSelected={image.id === selectedImageId} media={media}
+                                key={image.id} image={image} 
+                                onSelect={(id, e) => handleSelectImage(id, e)}
+                                isSelected={selectedImageIds.includes(image.id)} 
+                                media={media}
                             />
                         ))}
                     </div>
@@ -589,42 +640,60 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoad
                             </div>
                         </div>
 
-                        {selectedImage && (
-                            <div className="space-y-4">
-                                <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">選択中の画像</h3>
-                                <p className="text-sm text-gray-800 bg-gray-100 p-3 rounded-xl truncate" title={selectedImage.file.name}>
-                                    <span className="font-semibold">ファイル名:</span> {selectedImage.file.name}
-                                </p>
+                        {/* 選択状態に応じて表示を切り替え */}
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">
+                                {isMultiSelection ? `${selectedCount}件の画像を選択中` : '選択中の画像'}
+                            </h3>
+                            
+                            {noSelection && (
+                                <div className="text-sm text-gray-500 bg-gray-100 p-3 rounded-xl text-center">
+                                    画像を選択してください
+                                </div>
+                            )}
+
+                            {(isSingleSelection || isMultiSelection) && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-600 mb-2">種別:</label>
+                                    <label className="block text-sm font-medium text-gray-600 mb-2">
+                                        {isMultiSelection ? '種別を一括変更:' : '種別:'}
+                                    </label>
                                     <select
-                                        value={selectedImage.type}
-                                        onChange={(e) => handleTypeChange(selectedImage.id, e.target.value)}
+                                        value={isSingleSelection ? singleSelectedImage.type : ''} // 複数選択時は空にする
+                                        onChange={(e) => handleBulkTypeChange(e.target.value)}
                                         className="w-full px-4 py-3 bg-white/80 border border-gray-300/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                                     >
+                                        {isMultiSelection && <option value="" disabled>一括で変更する種別を選択</option>}
                                         {IMAGE_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                                     </select>
                                 </div>
-                                {selectedImage.targetSize ? (
-                                    <>
-                                        <p className="text-sm text-gray-800">
-                                            <span className="font-semibold">出力サイズ:</span> {`${selectedImage.targetSize.w} x ${selectedImage.targetSize.h} px`}
-                                        </p>
-                                        <button
-                                            onClick={() => handleCropAdjust(selectedImage.id)}
-                                            className="w-full py-2.5 px-4 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition text-sm flex items-center justify-center"
-                                        >
-                                            <Scissors size={14} className="mr-2" />
-                                            トリミング調整
-                                        </button>
-                                    </>
-                                ) : (
-                                    <div className="text-sm text-yellow-600 bg-yellow-100 p-3 rounded-xl text-center">
-                                        このメディアでは対象外です
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                            )}
+
+                            {isSingleSelection && singleSelectedImage && (
+                                <>
+                                    <p className="text-sm text-gray-800 bg-gray-100 p-3 rounded-xl truncate" title={singleSelectedImage.file.name}>
+                                        <span className="font-semibold">ファイル名:</span> {singleSelectedImage.file.name}
+                                    </p>
+                                    {singleSelectedImage.targetSize ? (
+                                        <>
+                                            <p className="text-sm text-gray-800">
+                                                <span className="font-semibold">出力サイズ:</span> {`${singleSelectedImage.targetSize.w} x ${singleSelectedImage.targetSize.h} px`}
+                                            </p>
+                                            <button
+                                                onClick={() => handleCropAdjust(singleSelectedImage.id)}
+                                                className="w-full py-2.5 px-4 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition text-sm flex items-center justify-center"
+                                            >
+                                                <Scissors size={14} className="mr-2" />
+                                                トリミング調整
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div className="text-sm text-yellow-600 bg-yellow-100 p-3 rounded-xl text-center">
+                                            このメディアでは対象外です
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     <footer className="p-4 border-t border-gray-200/80 bg-white/50 flex justify-between items-center flex-shrink-0">
@@ -716,6 +785,63 @@ const DownloadScreen = ({ zipBlob, onRestart, onDownload }) => {
     );
 };
 
+// アップデート情報モーダル
+const UpdateModal = ({ info, onClose }) => {
+  if (!info) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col transform transition-all duration-300 ease-in-out scale-95 opacity-0 animate-fade-in-scale">
+        <header className="flex items-center justify-between p-5 border-b border-gray-200 bg-gray-50/70 rounded-t-2xl">
+          <h2 className="text-xl font-bold text-gray-800 flex items-center">
+            <Megaphone className="mr-3 text-blue-500" />
+            {info.title}
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X size={24} />
+          </button>
+        </header>
+        <div className="p-6 flex-grow overflow-y-auto space-y-5 text-gray-700">
+          <p className="text-sm text-gray-500">
+            バージョン: <span className="font-semibold text-gray-600">{info.version}</span> ({info.date})
+          </p>
+          
+          {info.features && info.features.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-gray-800 mb-2">🚀 新機能・改善</h3>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                {info.features.map((item, index) => <li key={`feat-${index}`}>{item}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {info.fixes && info.fixes.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-gray-800 mb-2">🛠️ 修正点</h3>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                {info.fixes.map((item, index) => <li key={`fix-${index}`}>{item}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+        <footer className="flex justify-end p-4 border-t border-gray-200 bg-gray-50/70 rounded-b-2xl">
+          <button onClick={onClose} className="px-8 py-2.5 rounded-lg text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-all duration-200 transform hover:scale-105">確認</button>
+        </footer>
+      </div>
+      {/* CSS for animation */}
+      <style>{`
+        @keyframes fade-in-scale {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fade-in-scale {
+          animation: fade-in-scale 0.3s forwards cubic-bezier(0.16, 1, 0.3, 1);
+        }
+      `}</style>
+    </div>
+  );
+};
+
 // メインアプリケーションコンポーネント
 export default function App() {
   const [screen, setScreen] = useState('initializing');
@@ -727,6 +853,8 @@ export default function App() {
   const [zipBlob, setZipBlob] = useState(null);
   const [errors, setErrors] = useState([]);
   const [isLoadingThumbnails, setIsLoadingThumbnails] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
 
   const { isLoaded: isHeicLoaded, error: heicLoadError } = useScript(HEIC_CDN_URL);
   const { isLoaded: isCropperLoaded, error: cropperLoadError } = useScript(CROPPER_JS_CDN);
@@ -765,6 +893,32 @@ export default function App() {
       setScreen('upload');
     }
   }, [isHeicLoaded, isCropperLoaded, isJszipLoaded, isFilesaverLoaded, screen]);
+  
+  useEffect(() => {
+    const checkVersion = async () => {
+      try {
+        const response = await fetch('/updateInfo.json');
+        if (!response.ok) {
+          // If the file doesn't exist, just continue without showing the modal.
+          console.log('updateInfo.json not found, skipping version check.');
+          return;
+        }
+        const data = await response.json();
+        const lastSeenVersion = localStorage.getItem('lastSeenVersion');
+
+        if (data.version !== lastSeenVersion) {
+          setUpdateInfo(data);
+          setIsUpdateModalOpen(true);
+        }
+      } catch (error) {
+        console.error("Could not fetch or parse update info:", error);
+      }
+    };
+    // ライブラリの読み込みが完了してからバージョンチェックを実行
+    if (screen === 'upload') {
+        checkVersion();
+    }
+  }, [screen]); // screenが'upload'に変わった時に実行
 
   const generateAndSetInitialThumbnails = async (initialImages) => {
     setScreen('generating-thumbnails');
@@ -842,11 +996,6 @@ export default function App() {
         image.crossOrigin = 'anonymous';
         image.src = imageUrl;
         image.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = targetSize.w;
-            canvas.height = targetSize.h;
-            const ctx = canvas.getContext('2d');
-
             let sourceX, sourceY, sourceWidth, sourceHeight;
 
             if (cropData) {
@@ -863,8 +1012,54 @@ export default function App() {
                     sourceX = 0; sourceY = (image.height - sourceHeight) / 2;
                 }
             }
-            ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, targetSize.w, targetSize.h);
-            resolve(canvas);
+
+            
+            // 1. 元画像から必要な部分だけを高解像度で切り出す
+            const cropCanvas = document.createElement('canvas');
+            cropCanvas.width = sourceWidth;
+            cropCanvas.height = sourceHeight;
+            const cropCtx = cropCanvas.getContext('2d');
+            cropCtx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+
+            // 2. 段階的にリサイズして品質を維持する
+            let currentCanvas = cropCanvas;
+            let currentWidth = sourceWidth;
+            let currentHeight = sourceHeight;
+
+            // ターゲットサイズの半分より大きい間、半分に縮小を繰り返す
+            while (currentWidth > targetSize.w * 2 && currentHeight > targetSize.h * 2) {
+                const halfWidth = Math.floor(currentWidth / 2);
+                const halfHeight = Math.floor(currentHeight / 2);
+                
+                // 最後のステップ以外では、スムージングをかけすぎない設定も有効
+                if(halfWidth < targetSize.w * 1.5){
+                    break;
+                }
+
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = halfWidth;
+                tempCanvas.height = halfHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.imageSmoothingQuality = 'medium'; // 中間処理はmedium
+                tempCtx.drawImage(currentCanvas, 0, 0, currentWidth, currentHeight, 0, 0, halfWidth, halfHeight);
+
+                currentCanvas = tempCanvas;
+                currentWidth = halfWidth;
+                currentHeight = halfHeight;
+            }
+
+            // 3. 最終的なターゲットサイズに描画する
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = targetSize.w;
+            finalCanvas.height = targetSize.h;
+            const finalCtx = finalCanvas.getContext('2d');
+            
+            // 最終描画では品質を最高に設定
+            finalCtx.imageSmoothingQuality = 'high';
+            finalCtx.drawImage(currentCanvas, 0, 0, currentWidth, currentHeight, 0, 0, targetSize.w, targetSize.h);
+            
+
+            resolve(finalCanvas);
         };
         image.onerror = reject;
     });
@@ -903,6 +1098,13 @@ export default function App() {
   };
 
   const handleDownload = () => setIsDownloadCompleted(true);
+  
+  const handleCloseUpdateModal = () => {
+    if (updateInfo) {
+      localStorage.setItem('lastSeenVersion', updateInfo.version);
+    }
+    setIsUpdateModalOpen(false);
+  };
 
   const handleRestart = () => {
     images.forEach(image => URL.revokeObjectURL(image.originalUrl));
@@ -951,7 +1153,10 @@ export default function App() {
   };
 
   return (
-      <div className="font-sans w-full h-dvh flex flex-col antialiased bg-gray-100">
+      <div className="font-noto-sans w-full h-dvh flex flex-col antialiased bg-gray-100">
+          {isUpdateModalOpen && updateInfo && (
+            <UpdateModal info={updateInfo} onClose={handleCloseUpdateModal} />
+          )}
           {screen !== 'initializing' && <AppHeader currentStep={currentStep} steps={workflowSteps} isLoading={isLoading} />}
           <div className="flex-grow relative min-h-0 flex flex-col">
             <div className="absolute top-4 left-4 right-4 z-50 space-y-2 w-auto max-w-full">
@@ -964,4 +1169,3 @@ export default function App() {
       </div>
   );
 }
-

@@ -6,6 +6,9 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        'noto-sans': ['"Noto Sans JP"', 'sans-serif'],
+      },
       keyframes: {
         pulseDot: {
           '0%, 100%': { transform: 'scale(1)', opacity: '1' },
