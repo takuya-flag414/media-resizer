@@ -229,8 +229,7 @@ const AppHeader = ({ currentStep, steps, isLoading }) => {
         </div>
       </div>
 
-      {/* 
-      <div className="flex justify-end">
+      {/* <div className="flex justify-end">
         <a
           href="manual.html"
           target="_blank"
@@ -785,9 +784,44 @@ const DownloadScreen = ({ zipBlob, onRestart, onDownload }) => {
     );
 };
 
-// アップデート情報モーダル
-const UpdateModal = ({ info, onClose }) => {
-  if (!info) return null;
+// === ここから通知システムのコードです ===
+
+// 各通知タイプに応じた内容を描画するコンポーネント
+const UpdateContent = ({ content }) => (
+    <div>
+        <p className="text-sm text-gray-500 mb-4">Version: {content.version} ({content.date})</p>
+        {content.features?.length > 0 && (
+            <div className="mb-4">
+                <h3 className="font-semibold mb-1 text-gray-800">新機能・改善</h3>
+                <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                    {content.features.map((item, index) => <li key={`feat-${index}`}>{item}</li>)}
+                </ul>
+            </div>
+        )}
+        {content.fixes?.length > 0 && (
+            <div>
+                <h3 className="font-semibold mb-1 text-gray-800">修正点</h3>
+                <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                    {content.fixes.map((item, index) => <li key={`fix-${index}`}>{item}</li>)}
+                </ul>
+            </div>
+        )}
+    </div>
+);
+
+const AgreementContent = ({ content }) => (
+    <div>
+        <p className="text-sm text-gray-500 mb-4">{content.date}</p>
+        <p className="text-gray-700 whitespace-pre-wrap">{content.body}</p>
+        {content.link && <a href={content.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline mt-4 inline-block">詳細はこちら</a>}
+    </div>
+);
+
+
+// 汎用通知モーダルコンポーネント
+const NotificationModal = ({ notification, onClose }) => {
+  if (!notification) return null;
+  const { type, content } = notification;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out">
@@ -795,37 +829,25 @@ const UpdateModal = ({ info, onClose }) => {
         <header className="flex items-center justify-between p-5 border-b border-gray-200 bg-gray-50/70 rounded-t-2xl">
           <h2 className="text-xl font-bold text-gray-800 flex items-center">
             <Megaphone className="mr-3 text-blue-500" />
-            {info.title}
+            {content.title}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X size={24} />
-          </button>
+          {/* 同意が必要な場合は、Xボタンで閉じさせない */}
+          {type !== 'agreement' && (
+            <button onClick={() => onClose(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <X size={24} />
+            </button>
+          )}
         </header>
-        <div className="p-6 flex-grow overflow-y-auto space-y-5 text-gray-700">
-          <p className="text-sm text-gray-500">
-            バージョン: <span className="font-semibold text-gray-600">{info.version}</span> ({info.date})
-          </p>
-          
-          {info.features && info.features.length > 0 && (
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-2">🚀 新機能・改善</h3>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                {info.features.map((item, index) => <li key={`feat-${index}`}>{item}</li>)}
-              </ul>
-            </div>
-          )}
-
-          {info.fixes && info.fixes.length > 0 && (
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-2">🛠️ 修正点</h3>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                {info.fixes.map((item, index) => <li key={`fix-${index}`}>{item}</li>)}
-              </ul>
-            </div>
-          )}
+        <div className="p-6 flex-grow overflow-y-auto">
+          {type === 'update' && <UpdateContent content={content} />}
+          {type === 'agreement' && <AgreementContent content={content} />}
+          {/* 他のtypeもここに追加可能 */}
         </div>
         <footer className="flex justify-end p-4 border-t border-gray-200 bg-gray-50/70 rounded-b-2xl">
-          <button onClick={onClose} className="px-8 py-2.5 rounded-lg text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-all duration-200 transform hover:scale-105">確認</button>
+          {type === 'agreement' 
+            ? <button onClick={() => onClose(true)} className="px-8 py-2.5 rounded-lg text-white font-semibold bg-green-600 hover:bg-green-700 transition-all duration-200 transform hover:scale-105">同意する</button>
+            : <button onClick={() => onClose(true)} className="px-8 py-2.5 rounded-lg text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-all duration-200 transform hover:scale-105">確認</button>
+          }
         </footer>
       </div>
       {/* CSS for animation */}
@@ -842,6 +864,10 @@ const UpdateModal = ({ info, onClose }) => {
   );
 };
 
+
+// === ここまでが通知システムのコードです ===
+
+
 // メインアプリケーションコンポーネント
 export default function App() {
   const [screen, setScreen] = useState('initializing');
@@ -853,8 +879,10 @@ export default function App() {
   const [zipBlob, setZipBlob] = useState(null);
   const [errors, setErrors] = useState([]);
   const [isLoadingThumbnails, setIsLoadingThumbnails] = useState(false);
-  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState(null);
+
+  // === 通知システム用のState ===
+  const [notification, setNotification] = useState(null); // 現在表示中の通知
+  const [notificationQueue, setNotificationQueue] = useState([]); // 未表示の通知のキュー
 
   const { isLoaded: isHeicLoaded, error: heicLoadError } = useScript(HEIC_CDN_URL);
   const { isLoaded: isCropperLoaded, error: cropperLoadError } = useScript(CROPPER_JS_CDN);
@@ -894,31 +922,59 @@ export default function App() {
     }
   }, [isHeicLoaded, isCropperLoaded, isJszipLoaded, isFilesaverLoaded, screen]);
   
+  // === 通知チェックロジック (優先順位付けしてキューをセット) ===
   useEffect(() => {
-    const checkVersion = async () => {
+    const checkNotifications = async () => {
       try {
-        const response = await fetch('/updateInfo.json');
+        const response = await fetch('/notifications.json');
         if (!response.ok) {
-          // If the file doesn't exist, just continue without showing the modal.
-          console.log('updateInfo.json not found, skipping version check.');
+          console.log('notifications.jsonが見つかりません。通知チェックをスキップします。');
           return;
         }
-        const data = await response.json();
-        const lastSeenVersion = localStorage.getItem('lastSeenVersion');
+        const notifications = await response.json();
+        const seenNotifications = JSON.parse(localStorage.getItem('seenNotifications')) || [];
+        
+        // まだ見ていない全ての通知をフィルタリング
+        const unseenNotifications = notifications.filter(n => !seenNotifications.includes(n.id));
 
-        if (data.version !== lastSeenVersion) {
-          setUpdateInfo(data);
-          setIsUpdateModalOpen(true);
+        // === ここからが修正箇所です ===
+        // 通知タイプに基づいて優先順位を定義 (数値が小さいほど高優先)
+        const priorityOrder = {
+          'agreement': 1, // 'agreement' が最優先
+          'update': 2,    // 'update' が次に優先
+        };
+        const defaultPriority = 99; // 未定義のタイプは低い優先度
+
+        // 優先度に基づいて未読の通知を並び替え
+        unseenNotifications.sort((a, b) => {
+          const priorityA = priorityOrder[a.type] || defaultPriority;
+          const priorityB = priorityOrder[b.type] || defaultPriority;
+          return priorityA - priorityB;
+        });
+        // === ここまでが修正箇所です ===
+
+        if (unseenNotifications.length > 0) {
+          setNotificationQueue(unseenNotifications); // 並び替えたキューをセット
         }
       } catch (error) {
-        console.error("Could not fetch or parse update info:", error);
+        console.error("通知の取得または解析に失敗しました:", error);
       }
     };
-    // ライブラリの読み込みが完了してからバージョンチェックを実行
+    
     if (screen === 'upload') {
-        checkVersion();
+        checkNotifications();
     }
-  }, [screen]); // screenが'upload'に変わった時に実行
+  }, [screen]);
+
+  // === キューから次の通知を表示するロジック ===
+  useEffect(() => {
+    if (notificationQueue.length > 0) {
+      setNotification(notificationQueue[0]); // キューの先頭を表示
+    } else {
+      setNotification(null); // キューが空になったら非表示
+    }
+  }, [notificationQueue]);
+
 
   const generateAndSetInitialThumbnails = async (initialImages) => {
     setScreen('generating-thumbnails');
@@ -1099,12 +1155,23 @@ export default function App() {
 
   const handleDownload = () => setIsDownloadCompleted(true);
   
-  const handleCloseUpdateModal = () => {
-    if (updateInfo) {
-      localStorage.setItem('lastSeenVersion', updateInfo.version);
+  // === モーダルを閉じて、キューを更新する処理 ===
+  const handleCloseModal = (agreed) => {
+    const currentNotification = notificationQueue[0];
+    if (currentNotification) {
+      // 同意が必要なタイプで「同意」されなかった場合は、localStorageに保存しない
+      if (!(currentNotification.type === 'agreement' && !agreed)) {
+        const seenNotifications = JSON.parse(localStorage.getItem('seenNotifications')) || [];
+        if (!seenNotifications.includes(currentNotification.id)) {
+            seenNotifications.push(currentNotification.id);
+            localStorage.setItem('seenNotifications', JSON.stringify(seenNotifications));
+        }
+      }
     }
-    setIsUpdateModalOpen(false);
+    // 表示済みの通知をキューから削除
+    setNotificationQueue(currentQueue => currentQueue.slice(1));
   };
+
 
   const handleRestart = () => {
     images.forEach(image => URL.revokeObjectURL(image.originalUrl));
@@ -1154,9 +1221,11 @@ export default function App() {
 
   return (
       <div className="font-noto-sans w-full h-dvh flex flex-col antialiased bg-gray-100">
-          {isUpdateModalOpen && updateInfo && (
-            <UpdateModal info={updateInfo} onClose={handleCloseUpdateModal} />
+          {/* === 通知モーダルの描画 (表示する通知はstateで管理) === */}
+          {notification && (
+            <NotificationModal notification={notification} onClose={handleCloseModal} />
           )}
+
           {screen !== 'initializing' && <AppHeader currentStep={currentStep} steps={workflowSteps} isLoading={isLoading} />}
           <div className="flex-grow relative min-h-0 flex flex-col">
             <div className="absolute top-4 left-4 right-4 z-50 space-y-2 w-auto max-w-full">
