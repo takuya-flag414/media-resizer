@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { UploadCloud, Scissors, ChevronsRight, Download, RotateCcw, X, AlertCircle, Loader, HardDriveDownload, Check, HelpCircle, Megaphone } from 'lucide-react';
+import { UploadCloud, Scissors, ChevronsRight, Download, RotateCcw, X, AlertCircle, Loader, HardDriveDownload, Check, HelpCircle, Megaphone, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // === Helper Functions & Constants ===
 
@@ -296,7 +296,7 @@ const LoadingScreen = ({ title, progress, total }) => (
 );
 
 // ファイルアップロード画面
-const UploadScreen = ({ onFilesAccepted, setErrors }) => {
+const UploadScreen = ({ onFilesAccepted, setErrors, updateNotifications, onShowUpdates }) => {
   const onDrop = useCallback((acceptedFiles, fileRejections) => {
     let currentErrors = [];
     if (acceptedFiles.length + fileRejections.length > 30) {
@@ -341,6 +341,35 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
     <div {...getRootProps()} className="w-full h-full overflow-y-auto bg-gray-100 relative">
       <input {...getInputProps()} />
       <div className="w-full max-w-3xl mx-auto px-4 sm:px-8 py-10 sm:py-12 text-center flex flex-col items-center justify-center min-h-full">
+        {updateNotifications && updateNotifications.length > 0 && (
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-2xl mt-4 bg-blue-100/80 backdrop-blur-sm border-l-4 border-blue-500 text-blue-800 p-4 rounded-lg shadow-md flex items-center justify-between z-20 animate-fade-in-down">
+            <div className="flex items-center">
+              <Megaphone size={24} className="mr-3 flex-shrink-0" />
+              <p className="font-semibold text-sm sm:text-base">
+                {updateNotifications.length}件の最新バージョンがリリースされました
+              </p>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Dropzoneの発火を防ぐ
+                onShowUpdates();
+              }}
+              className="px-4 py-2 bg-blue-500 text-white font-bold rounded-md hover:bg-blue-600 transition-colors flex-shrink-0 ml-2"
+            >
+              確認
+            </button>
+            <style>{`
+              @keyframes fade-in-down {
+                from { opacity: 0; transform: translate(-50%, -20px); }
+                to { opacity: 1; transform: translate(-50%, 0); }
+              }
+              .animate-fade-in-down {
+                animation: fade-in-down 0.5s ease-out forwards;
+              }
+            `}</style>
+          </div>
+        )}
+        
         <div>
           <h1 className="text-3xl sm:text-5xl font-bold text-gray-800 tracking-tight">
             画像をアップロード
@@ -391,7 +420,7 @@ const UploadScreen = ({ onFilesAccepted, setErrors }) => {
 };
 
 // トリミング調整モーダル
-const CropModal = ({ image, onClose, onSave }) => {
+const CropModal = ({ image, onClose, onSave, onNavigatePrev, onNavigateNext, canNavigatePrev, canNavigateNext }) => {
   const imgRef = useRef(null);
   const [cropper, setCropper] = useState(null);
   const targetSize = image?.targetSize || { w: 1, h: 1 };
@@ -411,6 +440,27 @@ const CropModal = ({ image, onClose, onSave }) => {
 
     return () => cropperInstance.destroy();
   }, [image, targetSize]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') {
+        if (canNavigatePrev) {
+          e.preventDefault();
+          onNavigatePrev();
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (canNavigateNext) {
+          e.preventDefault();
+          onNavigateNext();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [canNavigatePrev, canNavigateNext, onNavigatePrev, onNavigateNext]);
   
   const handleSave = () => {
     if (cropper) {
@@ -439,9 +489,31 @@ const CropModal = ({ image, onClose, onSave }) => {
               <img ref={imgRef} src={image.originalUrl} alt="トリミング対象" style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}/>
             </div>
         </div>
-        <footer className="flex justify-end p-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
-          <button onClick={onClose} className="px-6 py-2 mr-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors">キャンセル</button>
-          <button onClick={handleSave} className="px-6 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors">決定</button>
+        <footer className="flex justify-between items-center p-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={onNavigatePrev} 
+              disabled={!canNavigatePrev}
+              className="flex items-center px-4 py-2 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              aria-label="前の画像へ"
+            >
+              <ChevronLeft size={20} />
+              <span className="ml-1 hidden sm:inline">前へ</span>
+            </button>
+            <button 
+              onClick={onNavigateNext}
+              disabled={!canNavigateNext}
+              className="flex items-center px-4 py-2 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              aria-label="次の画像へ"
+            >
+              <span className="mr-1 hidden sm:inline">次へ</span>
+              <ChevronRight size={20} />
+            </button>
+          </div>
+          <div className="flex items-center">
+            <button onClick={onClose} className="px-6 py-2 mr-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors">キャンセル</button>
+            <button onClick={handleSave} className="px-6 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors">決定</button>
+          </div>
         </footer>
       </div>
     </div>
@@ -480,7 +552,7 @@ const ImageCard = ({ image, onSelect, isSelected, media }) => {
 };
 
 // 画像一覧・編集画面
-const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoadingThumbnails }) => {
+const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoadingThumbnails, isLoadingThumbnails }) => {
     const [media, setMedia] = useState('EPARK');
     const [quality, setQuality] = useState(9.0);
     const [croppingImageId, setCroppingImageId] = useState(null);
@@ -518,8 +590,8 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoad
           setIsLoadingThumbnails(false);
         };
         processThumbnails();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [media]);
+      }, [media, images, setImages, setIsLoadingThumbnails]);
+
 
     // 選択された画像の種別を一括で変更する関数
     const handleBulkTypeChange = (type) => {
@@ -599,9 +671,21 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoad
     const croppingImage = images.find(img => img.id === croppingImageId);
     if(croppingImage) croppingImage.targetSize = RESIZE_DEFINITIONS[media]?.[croppingImage.type];
 
+    const currentIndex = croppingImageId ? images.findIndex(img => img.id === croppingImageId) : -1;
+    const canNavigatePrev = currentIndex > 0;
+    const canNavigateNext = currentIndex > -1 && currentIndex < images.length - 1;
+
+    const handleNavigate = (direction) => {
+        if (currentIndex === -1) return;
+        const newIndex = currentIndex + direction;
+        if (newIndex >= 0 && newIndex < images.length) {
+            setCroppingImageId(images[newIndex].id);
+        }
+    };
+    
 
     return (
-        <div className="w-full h-full flex flex-col bg-gray-100">
+        <div className="w-full h-full flex flex-col bg-gray-100 relative">
             <main className="flex-grow flex flex-col md:flex-row min-h-0">
                 <div className="w-full md:w-2/3 border-b md:border-b-0 md:border-r border-gray-200/80 overflow-y-auto p-4" onClick={() => setSelectedImageIds([])}>
                     <p className="text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
@@ -712,7 +796,28 @@ const EditScreen = ({ images, setImages, onProcess, onBack, setErrors, setIsLoad
                     image={croppingImage}
                     onClose={() => setCroppingImageId(null)}
                     onSave={handleCropSave}
+                    // ↓↓↓ 以下の4つのpropsが正しく渡されているか確認してください
+                    onNavigatePrev={() => handleNavigate(-1)}
+                    onNavigateNext={() => handleNavigate(1)}
+                    canNavigatePrev={canNavigatePrev}
+                    canNavigateNext={canNavigateNext}
                 />
+            )}
+
+            {/* ローディングオーバーレイ */}
+            {isLoadingThumbnails && (
+                <div className="absolute inset-0 bg-gray-100/80 backdrop-blur-sm flex items-center justify-center z-20">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-8">
+                        <div className="relative">
+                            <div className="w-28 h-28 bg-white/70 backdrop-blur-lg rounded-full flex items-center justify-center shadow-lg">
+                                <Loader className="w-16 h-16 text-blue-500 animate-spin" />
+                            </div>
+                        </div>
+                        <h2 className="text-2xl font-semibold mt-10 text-gray-700 tracking-wide">
+                            プレビューを更新中...
+                        </h2>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -786,7 +891,7 @@ const DownloadScreen = ({ zipBlob, onRestart, onDownload }) => {
 
 // === ここから通知システムのコードです ===
 
-// 各通知タイプに応じた内容を描画するコンポーネント
+// === 各通知タイプに応じた内容を描画するコンポーネント ===
 const UpdateContent = ({ content }) => (
     <div>
         <p className="text-sm text-gray-500 mb-4">Version: {content.version} ({content.date})</p>
@@ -813,7 +918,7 @@ const AgreementContent = ({ content }) => (
     <div>
         <p className="text-sm text-gray-500 mb-4">{content.date}</p>
         <p className="text-gray-700 whitespace-pre-wrap">{content.body}</p>
-        {content.link && <a href={content.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline mt-4 inline-block">詳細はこちら</a>}
+        {content.link && <a href={content.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline mt-4 inline-block">{content.linkText || '詳細はこちら'}</a>}
     </div>
 );
 
@@ -845,7 +950,7 @@ const NotificationModal = ({ notification, onClose }) => {
         </div>
         <footer className="flex justify-end p-4 border-t border-gray-200 bg-gray-50/70 rounded-b-2xl">
           {type === 'agreement' 
-            ? <button onClick={() => onClose(true)} className="px-8 py-2.5 rounded-lg text-white font-semibold bg-green-600 hover:bg-green-700 transition-all duration-200 transform hover:scale-105">同意する</button>
+            ? <button onClick={() => onClose(true)} className="px-8 py-2.5 rounded-lg text-white font-semibold bg-green-600 hover:bg-green-700 transition-all duration-200 transform hover:scale-105">同意して次へ</button>
             : <button onClick={() => onClose(true)} className="px-8 py-2.5 rounded-lg text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-all duration-200 transform hover:scale-105">確認</button>
           }
         </footer>
@@ -860,6 +965,51 @@ const NotificationModal = ({ notification, onClose }) => {
           animation: fade-in-scale 0.3s forwards cubic-bezier(0.16, 1, 0.3, 1);
         }
       `}</style>
+    </div>
+  );
+};
+
+// 更新履歴一覧モーダルコンポーネント
+const UpdateHistoryModal = ({ notifications, onClose }) => {
+  if (!notifications || notifications.length === 0) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col transform transition-all duration-300 ease-in-out scale-95 opacity-0 animate-fade-in-scale">
+        <header className="flex items-center justify-between p-5 border-b border-gray-200 bg-gray-50/70 rounded-t-2xl">
+          <h2 className="text-xl font-bold text-gray-800 flex items-center">
+            <Megaphone className="mr-3 text-blue-500" />
+            更新履歴
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X size={24} />
+          </button>
+        </header>
+        <div className="p-6 flex-grow overflow-y-auto space-y-6">
+          {notifications.map(notification => (
+            <div key={notification.id} className="border-b pb-4 last:border-b-0">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">{notification.content.title}</h3>
+              {/* 既存のUpdateContentコンポーネントを再利用 */}
+              <UpdateContent content={notification.content} />
+            </div>
+          ))}
+        </div>
+        <footer className="flex justify-end p-4 border-t border-gray-200 bg-gray-50/70 rounded-b-2xl">
+          <button onClick={onClose} className="px-8 py-2.5 rounded-lg text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-all duration-200 transform hover:scale-105">
+            確認
+          </button>
+        </footer>
+        {/* アニメーション用のスタイルはNotificationModalから流用 */}
+        <style>{`
+          @keyframes fade-in-scale {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+          }
+          .animate-fade-in-scale {
+            animation: fade-in-scale 0.3s forwards cubic-bezier(0.16, 1, 0.3, 1);
+          }
+        `}</style>
+      </div>
     </div>
   );
 };
@@ -883,6 +1033,9 @@ export default function App() {
   // === 通知システム用のState ===
   const [notification, setNotification] = useState(null); // 現在表示中の通知
   const [notificationQueue, setNotificationQueue] = useState([]); // 未表示の通知のキュー
+  const [allNotifications, setAllNotifications] = useState([]); 
+  const [updateBannerNotifications, setUpdateBannerNotifications] = useState([]); // 
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);        // 
 
   const { isLoaded: isHeicLoaded, error: heicLoadError } = useScript(HEIC_CDN_URL);
   const { isLoaded: isCropperLoaded, error: cropperLoadError } = useScript(CROPPER_JS_CDN);
@@ -922,40 +1075,45 @@ export default function App() {
     }
   }, [isHeicLoaded, isCropperLoaded, isJszipLoaded, isFilesaverLoaded, screen]);
   
-  // === 通知チェックロジック (優先順位付けしてキューをセット) ===
+  // === 通知チェックロジック (バナー表示対応) ===
   useEffect(() => {
     const checkNotifications = async () => {
       try {
         const response = await fetch('/notifications.json');
         if (!response.ok) {
-          console.log('notifications.jsonが見つかりません。通知チェックをスキップします。');
+          console.log('notifications.jsonが見つかりません。');
           return;
         }
         const notifications = await response.json();
+        setAllNotifications(notifications);
+
+        const isFirstVisit = JSON.parse(localStorage.getItem('isFirstVisit')) !== false;
         const seenNotifications = JSON.parse(localStorage.getItem('seenNotifications')) || [];
-        
-        // まだ見ていない全ての通知をフィルタリング
-        const unseenNotifications = notifications.filter(n => !seenNotifications.includes(n.id));
 
-        // === ここからが修正箇所です ===
-        // 通知タイプに基づいて優先順位を定義 (数値が小さいほど高優先)
-        const priorityOrder = {
-          'agreement': 1, // 'agreement' が最優先
-          'update': 2,    // 'update' が次に優先
-        };
-        const defaultPriority = 99; // 未定義のタイプは低い優先度
-
-        // 優先度に基づいて未読の通知を並び替え
-        unseenNotifications.sort((a, b) => {
-          const priorityA = priorityOrder[a.type] || defaultPriority;
-          const priorityB = priorityOrder[b.type] || defaultPriority;
-          return priorityA - priorityB;
-        });
-        // === ここまでが修正箇所です ===
-
-        if (unseenNotifications.length > 0) {
-          setNotificationQueue(unseenNotifications); // 並び替えたキューをセット
+        if (isFirstVisit) {
+            const welcomeNotification = notifications.find(n => n.type === 'welcome');
+            if (welcomeNotification) setNotificationQueue([welcomeNotification]);
+            return; // 初回訪問時はバナー表示はしない
         }
+
+        // --- リピート訪問時の処理 ---
+        const unseen = notifications.filter(n => n.type !== 'welcome' && !seenNotifications.includes(n.id));
+
+        // 1. agreement (規約同意) を優先してモーダル表示キューに入れる
+        const agreements = unseen.filter(n => n.type === 'agreement');
+        if (agreements.length > 0) {
+            // ここで日付などでソートすることも可能
+            setNotificationQueue(agreements);
+        }
+
+        // 2. update (更新) をバナー表示用のStateに入れる
+        const updates = unseen.filter(n => n.type === 'update');
+        if (updates.length > 0) {
+            // 新しい順（降順）に並び替え
+            updates.sort((a, b) => new Date(b.content.date) - new Date(a.content.date));
+            setUpdateBannerNotifications(updates);
+        }
+
       } catch (error) {
         console.error("通知の取得または解析に失敗しました:", error);
       }
@@ -1155,21 +1313,57 @@ export default function App() {
 
   const handleDownload = () => setIsDownloadCompleted(true);
   
-  // === モーダルを閉じて、キューを更新する処理 ===
-  const handleCloseModal = (agreed) => {
+  // === モーダルを閉じる処理 (設計書ベースに修正) ===
+  const handleCloseModal = (confirmed) => {
     const currentNotification = notificationQueue[0];
-    if (currentNotification) {
-      // 同意が必要なタイプで「同意」されなかった場合は、localStorageに保存しない
-      if (!(currentNotification.type === 'agreement' && !agreed)) {
-        const seenNotifications = JSON.parse(localStorage.getItem('seenNotifications')) || [];
-        if (!seenNotifications.includes(currentNotification.id)) {
-            seenNotifications.push(currentNotification.id);
-            localStorage.setItem('seenNotifications', JSON.stringify(seenNotifications));
-        }
-      }
+    if (!currentNotification) return;
+
+    const seenNotifications = JSON.parse(localStorage.getItem('seenNotifications')) || [];
+    let shouldUpdateStorage = false;
+
+    if (currentNotification.type === 'welcome' && confirmed) {
+        // Welcome通知を閉じた場合、isFirstVisitをfalseに設定し、
+        // Welcome通知IDと全てのUpdate通知IDを既読にする
+        localStorage.setItem('isFirstVisit', JSON.stringify(false));
+        const updateIds = allNotifications.filter(n => n.type === 'update').map(n => n.id);
+        const newSeenIds = [...new Set([...seenNotifications, currentNotification.id, ...updateIds])];
+        localStorage.setItem('seenNotifications', JSON.stringify(newSeenIds));
+        
+    } else if (currentNotification.type === 'agreement' && confirmed) {
+        // Agreement通知に同意した場合、IDを既読にする
+        shouldUpdateStorage = true;
+
+    } else if (currentNotification.type !== 'agreement') {
+        // 同意が不要な他の通知（例: update）の場合
+        shouldUpdateStorage = true;
     }
-    // 表示済みの通知をキューから削除
+    
+    // 既読ストレージを更新する必要がある場合
+    if (shouldUpdateStorage && !seenNotifications.includes(currentNotification.id)) {
+        seenNotifications.push(currentNotification.id);
+        localStorage.setItem('seenNotifications', JSON.stringify(seenNotifications));
+    }
+    
+    // 表示中の通知をクリアし、キューから削除
+    setNotification(null);
     setNotificationQueue(currentQueue => currentQueue.slice(1));
+  };
+
+  // 更新履歴モーダルを開くハンドラ
+  const handleShowUpdateModal = () => setIsUpdateModalOpen(true);
+
+  // 更新履歴モーダルを閉じるハンドラ
+  const handleCloseUpdateModal = () => {
+    const seenNotifications = JSON.parse(localStorage.getItem('seenNotifications')) || [];
+    // 表示されていた全てのupdate通知のIDを取得
+    const updateIdsToMarkAsSeen = updateBannerNotifications.map(n => n.id);
+    
+    // 重複なく既読IDをマージ
+    const newSeenIds = [...new Set([...seenNotifications, ...updateIdsToMarkAsSeen])];
+    localStorage.setItem('seenNotifications', JSON.stringify(newSeenIds));
+
+    setIsUpdateModalOpen(false);
+    setUpdateBannerNotifications([]); // バナーを消すためにStateを空にする
   };
 
 
@@ -1208,14 +1402,18 @@ export default function App() {
       case 'initializing': return <LoadingScreen title="ライブラリを準備中..." />;
       case 'loading': return <LoadingScreen title="画像を読み込んでいます..." progress={loadingProgress} total={totalFiles} />;
       case 'generating-thumbnails': return <LoadingScreen title="プレビューを生成中..." progress={loadingProgress} total={totalFiles} />;
-      case 'edit': 
-        if (isLoadingThumbnails) {
-          return <LoadingScreen title="プレビューを更新中..." />;
-        }
-        return <EditScreen images={images} setImages={setImages} onProcess={handleProcess} onBack={handleRestart} setErrors={handleFileErrors} setIsLoadingThumbnails={setIsLoadingThumbnails} />;
+      case 'edit': return <EditScreen images={images} setImages={setImages} onProcess={handleProcess} onBack={handleRestart} setErrors={handleFileErrors} setIsLoadingThumbnails={setIsLoadingThumbnails} isLoadingThumbnails={isLoadingThumbnails} />;
+
       case 'processing': return <LoadingScreen title="画像を処理中です..." progress={processingProgress} total={totalFiles} />;
       case 'download': return <DownloadScreen zipBlob={zipBlob} onRestart={handleRestart} onDownload={handleDownload} />;
-      case 'upload': default: return <UploadScreen onFilesAccepted={handleFilesAccepted} setErrors={handleFileErrors} />;
+      case 'upload': 
+            default: 
+              return <UploadScreen 
+                onFilesAccepted={handleFilesAccepted} 
+                setErrors={handleFileErrors} 
+                updateNotifications={updateBannerNotifications}
+                onShowUpdates={handleShowUpdateModal}
+              />;
     }
   };
 
@@ -1224,6 +1422,13 @@ export default function App() {
           {/* === 通知モーダルの描画 (表示する通知はstateで管理) === */}
           {notification && (
             <NotificationModal notification={notification} onClose={handleCloseModal} />
+          )}
+
+          {isUpdateModalOpen && (
+            <UpdateHistoryModal
+              notifications={updateBannerNotifications}
+              onClose={handleCloseUpdateModal}
+            />
           )}
 
           {screen !== 'initializing' && <AppHeader currentStep={currentStep} steps={workflowSteps} isLoading={isLoading} />}
