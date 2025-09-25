@@ -442,16 +442,16 @@ const CropModal = ({ image, onClose, onSave, onNavigatePrev, onNavigateNext, can
   }, [image, targetSize]);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = async (e) => {
       if (e.key === 'ArrowLeft') {
         if (canNavigatePrev) {
           e.preventDefault();
-          onNavigatePrev();
+          await handleSaveAndNavigate(onNavigatePrev);
         }
       } else if (e.key === 'ArrowRight') {
         if (canNavigateNext) {
           e.preventDefault();
-          onNavigateNext();
+          await handleSaveAndNavigate(onNavigateNext);
         }
       }
     };
@@ -460,14 +460,24 @@ const CropModal = ({ image, onClose, onSave, onNavigatePrev, onNavigateNext, can
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [canNavigatePrev, canNavigateNext, onNavigatePrev, onNavigateNext]);
+  }, [canNavigatePrev, canNavigateNext, onNavigatePrev, onNavigateNext, cropper, image]);
   
-  const handleSave = () => {
+  // 編集内容を保存してモーダルを閉じる
+  const handleSaveAndClose = () => {
     if (cropper) {
       onSave(image.id, cropper.getData(true));
       onClose();
     }
   };
+
+  // 編集内容を保存してから、次の画像へ移動する
+  const handleSaveAndNavigate = async (navigateFunction) => {
+    if (cropper) {
+      await onSave(image.id, cropper.getData(true));
+      navigateFunction();
+    }
+  };
+
 
   if (!image) return null;
 
@@ -479,9 +489,6 @@ const CropModal = ({ image, onClose, onSave, onNavigatePrev, onNavigateNext, can
             <Scissors className="mr-2 text-gray-500" />
             トリミング調整
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={24} />
-          </button>
         </header>
         <div className="p-6 flex-grow overflow-y-auto">
             <p className="text-sm text-gray-600 mb-4 truncate">ファイル: {image.file.name}</p>
@@ -492,7 +499,7 @@ const CropModal = ({ image, onClose, onSave, onNavigatePrev, onNavigateNext, can
         <footer className="flex justify-between items-center p-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
           <div className="flex items-center space-x-2">
             <button 
-              onClick={onNavigatePrev} 
+              onClick={() => handleSaveAndNavigate(onNavigatePrev)} 
               disabled={!canNavigatePrev}
               className="flex items-center px-4 py-2 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               aria-label="前の画像へ"
@@ -501,7 +508,7 @@ const CropModal = ({ image, onClose, onSave, onNavigatePrev, onNavigateNext, can
               <span className="ml-1 hidden sm:inline">前へ</span>
             </button>
             <button 
-              onClick={onNavigateNext}
+              onClick={() => handleSaveAndNavigate(onNavigateNext)}
               disabled={!canNavigateNext}
               className="flex items-center px-4 py-2 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               aria-label="次の画像へ"
@@ -511,8 +518,9 @@ const CropModal = ({ image, onClose, onSave, onNavigatePrev, onNavigateNext, can
             </button>
           </div>
           <div className="flex items-center">
-            <button onClick={onClose} className="px-6 py-2 mr-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors">キャンセル</button>
-            <button onClick={handleSave} className="px-6 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors">決定</button>
+            <button onClick={handleSaveAndClose} className="px-6 py-2 rounded-lg text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-colors">
+              閉じる
+            </button>
           </div>
         </footer>
       </div>
